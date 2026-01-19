@@ -1,0 +1,89 @@
+# ============================================================================
+# Scalar parameters
+# ============================================================================
+
+n_candidates: 500
+n_questions: 50
+n_choices: 4
+
+missing_rate: 0.05
+random_seed: 2342
+
+# ============================================================================
+# Ability distrubtion
+# ============================================================================
+
+ability:
+  distribution: normal
+  params:
+    mean: 0.0
+    std: 3.0
+
+# ============================================================================
+# Marginal Distributions for IRT Parameters
+# ============================================================================
+# Each parameter has its own marginal distribution.
+
+irt_parameters:
+  # Difficulty (b): How hard the question is on the IRT scale
+  # Typical range: -3 to +3, where higher = harder
+  difficulty:
+    distribution: normal
+    params:
+      mean: 0.0
+      std: 1.0
+      
+  # Discrimination (a): How well the question separates high/low ability candidates
+  # Typical range: 0.5 to 2.5, must be positive
+  discrimination:
+    distribution: truncated_normal
+    params:
+      mean: 1.0
+      std: 0.3
+      lower: 0.3  # Minimum 0.3 to prevent degenerate items
+      upper: null
+
+  # Guessing (c): Lower asymptote - probability of correct for very low ability
+  # For 4-choice items, typically around 0.20-0.25
+  guessing:
+    distribution: truncated_normal
+    params:
+      mean: 0.2
+      std: 0.05
+      lower: 0.0
+      upper: 0.35
+    
+  # Distractor quality: How attractive wrong answers are to low-ability candidates
+  # Higher = more attractive distractors (well-designed questions)
+  # Sampled independently per distractor (not included in joint distribution)
+  distractor_quality:
+    distribution: truncated_normal
+    params:
+      mean: 0.5
+      std: 0.2
+      lower: 0.0
+      upper: null
+  
+# ============================================================================
+# Parameter Correlations
+# ============================================================================
+# Pairwise correlations between difficulty, discrimination, and guessing.
+# These capture realistic relationships in item parameters.
+#
+# The correlation matrix must be positive semi-definite (PSD).
+# Values must be in [-1, 1] and satisfy mathematical constraints.
+#
+# Distractor quality is NOT included - it's sampled independently per distractor.
+#
+# Common patterns in real exams:
+#   - difficulty_discrimination < 0: Harder items often discriminate less well
+#   - difficulty_guessing > 0: Harder items may have more guessing
+#   - discrimination_guessing < 0: High discrimination items have less guessing
+
+correlations:
+  difficulty_discrimination: 0.0   # Range: [-1, 1]
+  difficulty_guessing: 0.0         # Range: [-1, 1]
+  discrimination_guessing: 0.0     # Range: [-1, 1]
+
+
+

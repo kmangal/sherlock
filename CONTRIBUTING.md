@@ -45,6 +45,29 @@ Make sure that you have both `uv` and `yarn` installed on your machine.
 6.  Install the frontend dependencies: `(cd frontend && yarn install)`
 7.  Run using XXXX
 
+## Sytle Guide
+
+We use Conventional Commits.
+
+The format should be:
+
+```
+<type>: <short summary>
+
+<optional body>
+```
+
+Types to use in this repo:
+* feat – new functionality
+* fix – bug fix
+* docs – documentation only
+* chore – tooling, CI, maintenance
+* refactor – code change without behavior change
+* test – adding or updating tests
+* build – build system or dependencies
+* ci – CI configuration
+
+
 ## Need Help?
 Feel free to contact us by opening an issue or reaching out via email at kmangal@alumni.harvard.edu.
 

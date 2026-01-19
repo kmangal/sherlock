@@ -1,0 +1,26 @@
+.venv/
+.venv-wsl/
+
+__pycache__/
+*.so
+*.pyc
+
+*.egg-info/
+
+/dist
+/build
+
+# Coverage
+htmlcov/
+.coverage
+
+# Local development caches
+/.import_linter_cache
+/.pytest_cache
+/.ruff_cache
+
+# Experimental
+/notebooks
+
+# Generated data
+/data

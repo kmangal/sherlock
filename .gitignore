@@ -1,0 +1,9 @@
+*.so
+*.pyc
+__pycache__/
+
+# Ignore data
+*.xlsx
+*.xls
+*.csv
+*.json

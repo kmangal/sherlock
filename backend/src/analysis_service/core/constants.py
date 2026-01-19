@@ -1,0 +1,2 @@
+MISSING_VALUE = -1
+MISSING_CHAR = "*"

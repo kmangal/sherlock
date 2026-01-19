@@ -1,0 +1,9 @@
+[importlinter]
+root_package = src.analysis_service
+
+[importlinter:contract:synthetic-data-protected]
+name = Synthetic data module cannot be imported
+type = protected
+protected_modules =
+    synthetic_data
+allowed_importers = 

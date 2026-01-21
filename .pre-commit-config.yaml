@@ -1,7 +1,7 @@
-# Pre-commit hooks
-# Install: uv tool install pre-commit && pre-commit install
-
 repos:
+  # -----------------------
+  # Local Python tooling
+  # -----------------------
   - repo: local
     hooks:
       # Ruff formatter
@@ -30,3 +30,13 @@ repos:
         types: [python]
         files: ^backend/
         pass_filenames: false
+
+  # -----------------------
+  # Commitizen
+  # -----------------------
+  - repo: https://github.com/commitizen-tools/commitizen
+    rev: v4.12.0
+    hooks:
+      # Enforce conventional commits
+      - id: commitizen
+        stages: [commit-msg]

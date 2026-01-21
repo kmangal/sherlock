@@ -7,3 +7,6 @@ __pycache__/
 *.xls
 *.csv
 *.json
+
+# Claude Code plans
+PLAN.md

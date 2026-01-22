@@ -16,9 +16,9 @@ from analysis_service.irt.response_models import (
     ThreePLResponseModel,
     sample_responses_batch,
 )
+from analysis_service.synthetic_data.config import GenerationConfig
 from analysis_service.synthetic_data.data_models import (
     GeneratedData,
-    GenerationConfig,
 )
 from analysis_service.synthetic_data.missingness import apply_missingness
 from analysis_service.synthetic_data.questions import sample_questions

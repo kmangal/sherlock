@@ -1,0 +1,106 @@
+"""
+Configuration dataclasses for IRT model estimation.
+
+This module defines the configuration parameters for:
+- Quadrature settings (Gauss-Hermite integration)
+- Convergence criteria for EM algorithm
+- Overall estimation settings
+"""
+
+from dataclasses import dataclass
+
+# Default parameter bounds
+DEFAULT_DISCRIMINATION_BOUNDS = (0.01, 5.0)
+DEFAULT_INTERCEPT_BOUNDS = (-10.0, 10.0)
+
+# Default convergence settings
+DEFAULT_MAX_EM_ITERATIONS = 500
+DEFAULT_EM_TOLERANCE = 1e-4
+DEFAULT_MAX_LBFGS_ITERATIONS = 100
+DEFAULT_LBFGS_TOLERANCE = 1e-6
+
+# Default warmup settings (per UPDATES.md recommendation)
+# Running 1-2 EM iterations with fixed discriminations reduces local maxima
+DEFAULT_WARMUP_ITERATIONS = 2
+
+# Default quadrature settings
+DEFAULT_QUADRATURE_POINTS = 41
+
+
+@dataclass(frozen=True)
+class QuadratureConfig:
+    """
+    Configuration for Gauss-Hermite quadrature.
+
+    Attributes:
+        n_points: Number of quadrature points. Standard in IRT software
+            (IRTPRO, flexMIRT) is 41 points.
+        mean: Mean of the ability distribution (typically 0).
+        std: Standard deviation of the ability distribution (typically 1).
+    """
+
+    n_points: int = DEFAULT_QUADRATURE_POINTS
+    mean: float = 0.0
+    std: float = 1.0
+
+
+@dataclass(frozen=True)
+class ConvergenceConfig:
+    """
+    Configuration for EM algorithm convergence.
+
+    Attributes:
+        max_em_iterations: Maximum number of EM iterations.
+        em_tolerance: Convergence tolerance for log-likelihood change.
+            EM stops when |LL_new - LL_old| / |LL_old| < tolerance.
+        max_lbfgs_iterations: Maximum iterations for L-BFGS-B in M-step.
+        lbfgs_tolerance: Convergence tolerance for L-BFGS-B optimizer.
+        warmup_iterations: Number of initial EM iterations with fixed
+            discriminations. Per UPDATES.md, this reduces local maxima issues.
+            Set to 0 to disable warmup.
+    """
+
+    max_em_iterations: int = DEFAULT_MAX_EM_ITERATIONS
+    em_tolerance: float = DEFAULT_EM_TOLERANCE
+    max_lbfgs_iterations: int = DEFAULT_MAX_LBFGS_ITERATIONS
+    lbfgs_tolerance: float = DEFAULT_LBFGS_TOLERANCE
+    warmup_iterations: int = DEFAULT_WARMUP_ITERATIONS
+
+
+@dataclass(frozen=True)
+class ParameterBounds:
+    """
+    Bounds for item parameters during optimization.
+
+    Attributes:
+        discrimination: (min, max) bounds for discrimination parameters.
+        intercept: (min, max) bounds for intercept parameters.
+    """
+
+    discrimination: tuple[float, float] = DEFAULT_DISCRIMINATION_BOUNDS
+    intercept: tuple[float, float] = DEFAULT_INTERCEPT_BOUNDS
+
+
+@dataclass(frozen=True)
+class EstimationConfig:
+    """
+    Master configuration for IRT model estimation.
+
+    Attributes:
+        quadrature: Settings for Gauss-Hermite quadrature.
+        convergence: Convergence criteria for EM algorithm.
+        bounds: Parameter bounds for optimization.
+        model_version: Version string for reproducibility tracking.
+        verbose: Whether to print progress information.
+    """
+
+    quadrature: QuadratureConfig = QuadratureConfig()
+    convergence: ConvergenceConfig = ConvergenceConfig()
+    bounds: ParameterBounds = ParameterBounds()
+    model_version: str = "nrm-mml-em-v1"
+    verbose: bool = False
+
+
+def default_config() -> EstimationConfig:
+    """Create a default estimation configuration."""
+    return EstimationConfig()

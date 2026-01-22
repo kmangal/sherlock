@@ -168,10 +168,10 @@ class MixtureDistribution(Distribution):
             # Use Brent's method to find x such that mixture_cdf(x) = qi
             # Search bounds: use a wide range, could be refined based on components
             try:
-                _, finder_result = brentq(
+                finder_result = brentq(
                     lambda x, q=qi: mixture_cdf(x) - q, -100, 100
                 )
-                result[i] = finder_result.root
+                result[i] = finder_result
             except ValueError:
                 # If brentq fails (e.g., qi is 0 or 1), use fallback
                 if qi <= 0:

@@ -8,6 +8,7 @@ from analysis_service.irt import (
     sample_response,
     sample_responses_batch,
 )
+from analysis_service.irt.estimation.nrm.parameters import NRMItemParameters
 
 
 class TestResponseModels:
@@ -25,8 +26,8 @@ class TestResponseModels:
         for ability in [-3, -1, 0, 1, 3]:
             probs = model.compute_probabilities(ability, question, 4)
             assert np.isclose(probs.sum(), 1.0)
-            assert all(probs >= 0)
-            assert all(probs <= 1)
+            assert np.all(probs >= 0)
+            assert np.all(probs <= 1)
 
     def test_three_pl_guessing_floor(self) -> None:
         """Test that very low ability still has guessing probability."""
@@ -65,7 +66,19 @@ class TestResponseModels:
         assert probs[1] > 0.9
 
     def test_nominal_response_model_valid_probs(self) -> None:
-        model = NominalResponseModel()
+        item_params = [
+            NRMItemParameters(
+                item_id=0,
+                discriminations=(0.5, 0.9, 0.4, 0.5),
+                intercepts=(0.0, 0.3, 0.5, 0.8),
+            ),
+            NRMItemParameters(
+                item_id=1,
+                discriminations=(0.5, 0.9, 0.4, 0.5),
+                intercepts=(0.0, 0.3, 0.5, 0.8),
+            ),
+        ]
+        model = NominalResponseModel(item_params)
         question = Question(
             question_id=0,
             difficulty=0.0,

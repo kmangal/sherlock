@@ -8,21 +8,19 @@ Output files are written to data/synthetic/{preset_name}.csv.
 
 import logging
 import sys
-from pathlib import Path
 
 from analysis_service.synthetic_data.generators import (
     generate_exam_responses,
     to_csv,
 )
 from analysis_service.synthetic_data.presets import PARAMS_DIR, get_preset
+from scripts.paths import SYNTHETIC_DATA_DIR
 
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(levelname)s - %(message)s",
 )
 logger = logging.getLogger(__name__)
-
-OUTPUT_DIR = Path(__file__).parent.parent / "data" / "synthetic"
 
 
 def get_non_empty_presets() -> list[str]:
@@ -36,7 +34,7 @@ def get_non_empty_presets() -> list[str]:
 
 def main() -> int:
     """Generate CSV files for all non-empty presets."""
-    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    SYNTHETIC_DATA_DIR.mkdir(parents=True, exist_ok=True)
 
     presets = get_non_empty_presets()
     if not presets:
@@ -46,7 +44,7 @@ def main() -> int:
     logger.info("Found %d non-empty presets: %s", len(presets), presets)
 
     for preset_name in presets:
-        output_path = OUTPUT_DIR / f"{preset_name}.csv"
+        output_path = SYNTHETIC_DATA_DIR / f"{preset_name}.csv"
         logger.info("Generating %s -> %s", preset_name, output_path)
 
         config = get_preset(preset_name)
@@ -59,7 +57,9 @@ def main() -> int:
             config.n_questions,
         )
 
-    logger.info("Done. Generated %d CSV files in %s", len(presets), OUTPUT_DIR)
+    logger.info(
+        "Done. Generated %d CSV files in %s", len(presets), SYNTHETIC_DATA_DIR
+    )
     return 0
 
 

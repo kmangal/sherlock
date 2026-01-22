@@ -252,7 +252,8 @@ def load_config(yaml_path: Path) -> GenerationConfig:
         config = schema
 
     # Convert to typed dataclass
-    result: GenerationConfig = OmegaConf.to_object(config)
+    result = OmegaConf.to_object(config)
+    assert isinstance(result, GenerationConfig)
 
     # Validate correlation matrix is PSD
     build_correlation_matrix(result.correlations)

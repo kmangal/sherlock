@@ -26,6 +26,7 @@ dev = [
     "prek>=0.2.30",
     "ruff>=0.14.13",
     "scipy-stubs",
+    "pandas-stubs",
 ]
 build = [
     "pyinstaller>=6.0.0",
@@ -53,8 +54,8 @@ check_untyped_defs = true
 disallow_untyped_decorators = true
 
 # Files and paths
-files = ["src/"]
-mypy_path = ["src"]
+files = ["src/", "scripts/"]
+mypy_path = ["src", "scripts"]
 exclude = [
     "build/",
     "__pycache__/",

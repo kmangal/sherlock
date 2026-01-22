@@ -13,6 +13,9 @@ from numpy.typing import NDArray
 
 from analysis_service.core.data_models import Question
 from analysis_service.core.utils import get_rng, softmax
+from analysis_service.irt.estimation.nrm.parameters import (
+    NRMItemParameters,
+)
 
 
 class ResponseModel(ABC):
@@ -170,19 +173,43 @@ class ThreePLResponseModel(ResponseModel):
 
 class NominalResponseModel(ResponseModel):
     """
-    Nominal Response Model (Bock, 1972) with 3PL-style guessing.
+    Nominal Response Model (Bock, 1972).
 
-    This model combines the 3PL guessing parameter with a multinomial
-    logit structure for distractor selection. It provides more flexibility
-    in modeling how candidates select among distractors.
+    Pure NRM without correct/incorrect distinction:
+        P(Y=k | θ) = exp(a_k * θ + b_k) / Σ_h exp(a_h * θ + b_h)
 
-    The probability of selecting choice k is:
-        - For correct answer: P(correct) from 3PL model
-        - For distractors: (1 - P(correct)) * softmax(distractor_logits)
+    This model treats all response categories symmetrically using a
+    multinomial logit structure. Each category k has:
+        - a_k: discrimination (slope) parameter
+        - b_k: intercept parameter
 
-    Where distractor logits depend on ability relative to difficulty
-    and distractor quality.
+    Identification constraint: a_0 = 0, b_0 = 0 (reference category).
+
+    When used with estimated NRMItemParameters, provides the fitted model's
+    probability function for data generation.
     """
+
+    def __init__(
+        self,
+        item_params: list[NRMItemParameters],
+    ):
+        """
+        Initialize NRM response model.
+
+        Args:
+            item_params: List of NRMItemParameters.
+        """
+        self._validate_item_params(item_params)
+
+        # Store data internally as a lookup
+        self._item_params = {param.item_id: param for param in item_params}
+
+    @staticmethod
+    def _validate_item_params(item_params: list[NRMItemParameters]) -> None:
+        unique_item_ids = {ip.item_id for ip in item_params}
+        assert len(unique_item_ids) == len(item_params), (
+            "Item IDs in the parameters are not unique"
+        )
 
     def compute_probabilities(
         self,
@@ -195,8 +222,7 @@ class NominalResponseModel(ResponseModel):
 
         Args:
             ability: Candidate's latent ability (theta).
-            question: Question with difficulty (b), discrimination (a),
-                guessing (c), and distractor quality parameters.
+            question: Question object (used for question_id or legacy params).
             n_choices: Number of answer choices.
 
         Returns:
@@ -219,53 +245,43 @@ class NominalResponseModel(ResponseModel):
 
         Args:
             abilities: Array of shape (n_candidates,) with ability values.
-            question: Question with IRT parameters.
+            question: Question object.
             n_choices: Number of answer choices.
 
         Returns:
             Array of shape (n_candidates, n_choices) with probabilities.
         """
-        n_candidates = len(abilities)
-        a = question.discrimination
-        b = question.difficulty
-        c = question.guessing
-        correct = question.correct_answer
-        distractor_quality = np.array(
-            question.distractor_quality, dtype=np.float64
+        return self._compute_probs_from_nrm_params(
+            abilities, question.question_id, n_choices
         )
 
-        # Vectorized 3PL probability of correct answer
-        exponent = -a * (abilities - b)
-        exponent = np.clip(exponent, -30, 30)
-        p_correct = c + (1 - c) / (1 + np.exp(exponent))
+    def _compute_probs_from_nrm_params(
+        self,
+        abilities: NDArray[np.float64],
+        question_id: int,
+        n_choices: int,
+    ) -> NDArray[np.float64]:
+        """
+        Compute probabilities using fitted NRM parameters.
 
-        # Initialize probabilities
-        probs = np.zeros((n_candidates, n_choices), dtype=np.float64)
-        probs[:, correct] = p_correct
+        Uses the pure Bock NRM formula:
+            P(Y=k | θ) = exp(a_k * θ + b_k) / Σ_h exp(a_h * θ + b_h)
+        """
+        params = self._item_params[question_id]
+        discriminations = np.array(params.discriminations, dtype=np.float64)
+        intercepts = np.array(params.intercepts, dtype=np.float64)
 
-        # Probability of incorrect answer
-        p_wrong = 1.0 - p_correct
+        # Compute logits: a_k * theta + b_k
+        # Shape: (n_candidates, n_categories)
+        logits = (
+            np.outer(abilities, discriminations) + intercepts[np.newaxis, :]
+        )
 
-        # Compute distractor logits for all candidates
-        # Effect scales with ability gap
-        ability_gaps = b - abilities
-        scaling = np.maximum(0.5, 1.0 + 0.3 * ability_gaps)
+        # Clip for numerical stability
+        logits = np.clip(logits, -30, 30)
 
-        # Distractor logits: quality * scaling for each candidate
-        # Shape: (n_candidates, n_distractors)
-        logits = distractor_quality[np.newaxis, :] * scaling[:, np.newaxis]
-
-        # Softmax along distractor axis
-        distractor_probs = softmax(logits, axis=1)
-
-        # Assign distractor probabilities to non-correct choices
-        distractor_idx = 0
-        for k in range(n_choices):
-            if k != correct:
-                probs[:, k] = p_wrong * distractor_probs[:, distractor_idx]
-                distractor_idx += 1
-
-        return probs
+        # Softmax
+        return softmax(logits, axis=1).astype(np.float64)
 
 
 def sample_response(

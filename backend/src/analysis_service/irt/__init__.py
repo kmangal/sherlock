@@ -1,6 +1,14 @@
-from .response_models import (
+"""
+IRT (Item Response Theory) module.
+
+This module provides:
+- Response models for computing P(response | ability, item)
+- Estimation infrastructure for fitting IRT models to data
+- Ability estimation
+"""
+
+from analysis_service.irt.response_models import (
     NominalResponseModel,
-    ResponseModel,
     ThreePLResponseModel,
     sample_response,
     sample_responses_batch,
@@ -8,7 +16,6 @@ from .response_models import (
 
 __all__ = [
     "NominalResponseModel",
-    "ResponseModel",
     "ThreePLResponseModel",
     "sample_response",
     "sample_responses_batch",

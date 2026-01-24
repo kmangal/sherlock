@@ -10,7 +10,7 @@ from numpy.typing import NDArray
 from pydantic import BaseModel, ConfigDict, Field
 
 from analysis_service.core.constants import MISSING_VALUE
-from analysis_service.core.data_models import Question
+from analysis_service.irt.estimation.parameters import NRMItemParameters
 from analysis_service.synthetic_data.config import GenerationConfig
 
 
@@ -44,10 +44,10 @@ class GeneratedData(BaseModel):
 
     # Intermediate data (for validation and debugging)
     abilities: NDArray[np.float64]
-    questions: list[Question]
+    item_params: list[NRMItemParameters]
     raw_responses: NDArray[
         np.int8
-    ]  # Shape: (n_candidates, n_questions), MISSING_VALUE = missing
+    ]  # Shape: (n_candidates, n_items), MISSING_VALUE = missing
 
     # Generation metadata
     config: GenerationConfig

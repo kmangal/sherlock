@@ -7,20 +7,23 @@ Output files are written to data/synthetic/{preset_name}.csv.
 """
 
 import logging
-import sys
+from pathlib import Path
+
+import typer
 
 from analysis_service.synthetic_data.generators import (
     generate_exam_responses,
     to_csv,
 )
 from analysis_service.synthetic_data.presets import PARAMS_DIR, get_preset
-from scripts.paths import SYNTHETIC_DATA_DIR
+
+SYNTHETIC_DATA_DIR = Path(__file__).parent.parent / "data" / "synthetic"
 
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(levelname)s - %(message)s",
 )
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("refresh_synthetic_data")
 
 
 def get_non_empty_presets() -> list[str]:
@@ -32,16 +35,18 @@ def get_non_empty_presets() -> list[str]:
     return sorted(presets)
 
 
-def main() -> int:
+def main(preset: str | None = None) -> int:
     """Generate CSV files for all non-empty presets."""
     SYNTHETIC_DATA_DIR.mkdir(parents=True, exist_ok=True)
 
-    presets = get_non_empty_presets()
-    if not presets:
-        logger.warning("No non-empty preset configurations found")
-        return 1
-
-    logger.info("Found %d non-empty presets: %s", len(presets), presets)
+    if preset is None:
+        presets = get_non_empty_presets()
+        if not presets:
+            raise FileNotFoundError("No non-empty preset configurations found")
+        logger.info("Found %d non-empty presets: %s", len(presets), presets)
+    else:
+        logger.info(f"Generating synthetic data for preset {preset}")
+        presets = [preset]
 
     for preset_name in presets:
         output_path = SYNTHETIC_DATA_DIR / f"{preset_name}.csv"
@@ -64,4 +69,4 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    typer.run(main)

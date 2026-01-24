@@ -1,9 +1,7 @@
 import numpy as np
 import pytest
 
-from analysis_service.core.constants import MISSING_VALUE
 from analysis_service.synthetic_data.config import (
-    DistributionConfig,
     GenerationConfig,
 )
 from analysis_service.synthetic_data.generators import generate_exam_responses
@@ -64,41 +62,6 @@ class TestParameterRecovery:
 
         # Should be within 1 std error
         assert abs(actual_std - target_std) < 0.01
-
-    def test_guessing_parameter_recovery(
-        self, baseline_config: GenerationConfig
-    ) -> None:
-        """Test that guessing parameter affects low-ability performance."""
-        # With high guessing, even low ability candidates should get ~guessing% correct
-        baseline_config.irt_parameters.guessing = DistributionConfig(
-            distribution="truncated_normal",
-            params={"mean": 0.25, "std": 0.001, "lower": 0.24, "upper": 0.26},
-        )
-
-        # Make questions hard
-        baseline_config.irt_parameters.difficulty.params["mean"] = 3.0
-
-        data = generate_exam_responses(baseline_config)
-
-        # Get lowest ability candidates
-        low_ability_mask = data.abilities < np.percentile(data.abilities, 10)
-        low_ability_responses = data.raw_responses[low_ability_mask]
-
-        # Count correct answers
-        correct_answers = np.array([q.correct_answer for q in data.questions])
-        correct_count = 0
-        total_count = 0
-        for candidate_responses in low_ability_responses:
-            for j, response in enumerate(candidate_responses):
-                if response != MISSING_VALUE:
-                    total_count += 1
-                    if response == correct_answers[j]:
-                        correct_count += 1
-
-        actual_accuracy = correct_count / total_count if total_count > 0 else 0
-
-        # Low ability accuracy should be close to guessing rate
-        assert abs(actual_accuracy - 0.25) < 0.05
 
     def test_monotonicity_ability_performance(
         self, baseline_config: GenerationConfig

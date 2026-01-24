@@ -9,39 +9,55 @@ class DistributionConfig:
 
     Attributes:
         distribution: Distribution type ("normal", "truncated_normal", "uniform", "log_normal")
-        mean: Mean of the distribution
-        std: Standard deviation of the distribution
-        bounds: Optional (min, max) bounds. Use None for unbounded.
+        params: Distribution parameters (mean, std, lower, upper, etc.)
     """
 
     distribution: str = MISSING
     params: dict[str, float | None] = MISSING
 
 
-def _default_difficulty() -> DistributionConfig:
-    return DistributionConfig(
-        distribution="normal", params={"mean": 0.0, "std": 1.0}
-    )
+@dataclass
+class CorrelationsConfig:
+    """Configure correlations between NRM parameters"""
+
+    discrimination_intercept: float
+    intercept_correct_gap: float
+    discrimination_correct_gap: float
+
+    def __post_init__(self) -> None:
+        check1 = abs(self.discrimination_correct_gap) > 1
+        check2 = abs(self.discrimination_intercept) > 1
+        check3 = abs(self.intercept_correct_gap) > 1
+
+        if any([check1, check2, check3]):
+            raise ValueError("correlations should have absolute value < 1")
 
 
 def _default_discrimination() -> DistributionConfig:
-    return DistributionConfig(
-        distribution="normal",
-        params={"mean": 0.0, "std": 1.0, "lower": 0.3, "upper": None},
-    )
-
-
-def _default_guessing() -> DistributionConfig:
-    return DistributionConfig(
-        distribution="normal",
-        params={"mean": 0.2, "std": 0.05, "lower": 0.0, "upper": 0.35},
-    )
-
-
-def _default_distractor_quality() -> DistributionConfig:
+    """Default distribution for NRM distractor discriminations (a_k for k != correct)."""
     return DistributionConfig(
         distribution="truncated_normal",
-        params={"mean": 0.5, "std": 0.2, "lower": 0.0, "upper": None},
+        params={"mean": 0.5, "std": 0.3, "lower": 0.0, "upper": 2.5},
+    )
+
+
+def _default_intercept() -> DistributionConfig:
+    """Default distribution for NRM intercepts (c_k)."""
+    return DistributionConfig(
+        distribution="normal",
+        params={"mean": 0.0, "std": 1.0},
+    )
+
+
+def _default_correct_dicrimination_gap() -> DistributionConfig:
+    """Default distribution for the gap between a_correct and max(a_distractor).
+
+    This is the delta parameter where a_correct = max(a_distractor) + delta.
+    Should be positive to ensure correct answer dominates at high ability.
+    """
+    return DistributionConfig(
+        distribution="truncated_normal",
+        params={"mean": 0.5, "std": 0.3, "lower": 0.1, "upper": 2.0},
     )
 
 
@@ -51,43 +67,36 @@ def _default_ability() -> DistributionConfig:
     )
 
 
+def _default_correlations() -> CorrelationsConfig:
+    return CorrelationsConfig(
+        discrimination_intercept=0.0,
+        discrimination_correct_gap=0.0,
+        intercept_correct_gap=0.0,
+    )
+
+
 @dataclass
-class IRTParametersConfig:
-    """Configuration for all IRT parameter marginal distributions.
+class NRMParametersConfig:
+    """Configuration for NRM parameter distributions.
+
+    The NRM model: P(Y=k|θ) = exp(a_k*θ + c_k) / Σ exp(a_m*θ + c_m)
+
+    When correct answer is known, we enforce a_correct > max(a_distractor)
+    by sampling: a_correct = max(a_distractor) + correct_gap
 
     Attributes:
-        difficulty: Difficulty parameter distribution
-        discrimination: Discrimination parameter distribution
-        guessing: Guessing (pseudo-chance) parameter distribution
-        distractor_quality: Distractor quality parameter distribution
+        discrimination: Distribution for distractor discriminations (a_k, k != correct)
+        intercept: Distribution for intercepts (c_k)
+        correct_gap: Distribution for gap delta = a_correct - max(a_distractor)
     """
 
-    difficulty: DistributionConfig = field(default_factory=_default_difficulty)
     discrimination: DistributionConfig = field(
         default_factory=_default_discrimination
     )
-    guessing: DistributionConfig = field(default_factory=_default_guessing)
-    distractor_quality: DistributionConfig = field(
-        default_factory=_default_distractor_quality
+    intercept: DistributionConfig = field(default_factory=_default_intercept)
+    correct_discrimination_gap: DistributionConfig = field(
+        default_factory=_default_correct_dicrimination_gap
     )
-
-
-@dataclass
-class CorrelationsConfig:
-    """Pairwise correlations for 3x3 joint distribution.
-
-    Only difficulty, discrimination, and guessing are sampled jointly.
-    Distractor quality is sampled independently (per-distractor, not per-question).
-
-    Attributes:
-        difficulty_discrimination: Correlation between difficulty and discrimination
-        difficulty_guessing: Correlation between difficulty and guessing
-        discrimination_guessing: Correlation between discrimination and guessing
-    """
-
-    difficulty_discrimination: float = 0.0
-    difficulty_guessing: float = 0.0
-    discrimination_guessing: float = 0.0
 
 
 @dataclass
@@ -105,11 +114,12 @@ class GenerationConfig:
     random_seed: int = MISSING
 
     ability: DistributionConfig = field(default_factory=_default_ability)
-    irt_parameters: IRTParametersConfig = field(
-        default_factory=IRTParametersConfig
+    nrm_parameters: NRMParametersConfig = field(
+        default_factory=NRMParametersConfig
     )
+
     correlations: CorrelationsConfig = field(
-        default_factory=CorrelationsConfig
+        default_factory=_default_correlations
     )
 
     def __post_init__(self) -> None:

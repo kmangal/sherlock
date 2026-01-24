@@ -6,11 +6,9 @@ enabling clean decoupling between the IRT statistical models and the synthetic
 data orchestration layer.
 """
 
-from analysis_service.core.data_models import Question
 from analysis_service.core.utils import get_rng, softmax
 
 __all__ = [
-    "Question",
     "get_rng",
     "softmax",
 ]

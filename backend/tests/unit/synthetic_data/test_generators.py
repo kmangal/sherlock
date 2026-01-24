@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from analysis_service.synthetic_data.data_models import GenerationConfig
+from analysis_service.synthetic_data.config import GenerationConfig
 from analysis_service.synthetic_data.generators import generate_exam_responses
 from analysis_service.synthetic_data.presets import get_preset
 from analysis_service.synthetic_data.validation import (
@@ -21,12 +21,12 @@ def test_generate_exam_responses_basic(
     data = generate_exam_responses(baseline_config)
 
     n_candidates = baseline_config.n_candidates
-    n_questions = baseline_config.n_questions
+    n_items = baseline_config.n_questions
 
     assert len(data.answer_strings) == n_candidates
-    assert all(len(s) == n_questions for s in data.answer_strings)
+    assert all(len(s) == n_items for s in data.answer_strings)
     assert data.abilities.shape == (n_candidates,)
-    assert len(data.questions) == n_questions
+    assert len(data.item_params) == n_items
 
 
 def test_generate_exam_responses_reproducible(

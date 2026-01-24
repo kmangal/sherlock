@@ -1,7 +1,7 @@
 """
 Orchestration layer for synthetic exam data generation.
 
-This module ties together abilities, questions, responses, and missingness
+This module ties together abilities, item parameters, responses, and missingness
 to generate complete exam response data.
 """
 
@@ -9,26 +9,21 @@ import numpy as np
 import pandas as pd
 from numpy.typing import NDArray
 
-from analysis_service.core.data_models import Question
 from analysis_service.core.utils import get_rng
-from analysis_service.irt.response_models import (
-    ResponseModel,
-    ThreePLResponseModel,
-    sample_responses_batch,
-)
+from analysis_service.irt.estimation.parameters import NRMItemParameters
+from analysis_service.irt.sampling import sample_responses_batch
 from analysis_service.synthetic_data.config import GenerationConfig
 from analysis_service.synthetic_data.data_models import (
     GeneratedData,
 )
 from analysis_service.synthetic_data.missingness import apply_missingness
-from analysis_service.synthetic_data.questions import sample_questions
+from analysis_service.synthetic_data.questions import sample_item_parameters
 from analysis_service.synthetic_data.sampling import draw_sample
 from analysis_service.synthetic_data.utils import responses_to_string
 
 
 def generate_exam_responses(
     config: GenerationConfig,
-    response_model: ResponseModel | None = None,
 ) -> GeneratedData:
     """
     Generate synthetic exam response data.
@@ -36,22 +31,18 @@ def generate_exam_responses(
     This is the main entry point for the synthetic data generation pipeline.
     It orchestrates the full generation process:
         1. Sample candidate abilities
-        2. Sample question parameters
+        2. Sample item parameters based on config.model_type
         3. Generate responses based on IRT model
         4. Apply missingness
         5. Convert to answer strings
 
     Args:
         config: Complete generation configuration.
-        response_model: Response model to use. Defaults to ThreePLResponseModel.
 
     Returns:
         GeneratedData containing answer strings and all intermediate data.
     """
     rng = get_rng(config.random_seed)
-
-    if response_model is None:
-        response_model = ThreePLResponseModel()
 
     # Step 1: Sample candidate abilities
     abilities = draw_sample(
@@ -61,19 +52,13 @@ def generate_exam_responses(
         rng=rng,
     )
 
-    # Step 2: Create exam spec and sample questions
-
-    questions = sample_questions(
-        config=config,
-        rng=rng,
-    )
+    # Step 2: Sample item parameters
+    item_params = sample_item_parameters(config=config, rng=rng)
 
     # Step 3: Generate responses
     raw_responses = sample_responses_batch(
         abilities=abilities,
-        questions=questions,
-        n_choices=config.n_choices,
-        response_model=response_model,
+        item_params_list=item_params,
         rng=rng,
     )
 
@@ -96,32 +81,28 @@ def generate_exam_responses(
         candidate_ids=candidate_ids,
         answer_strings=answer_strings,
         abilities=abilities,
-        questions=questions,
+        item_params=item_params,
         raw_responses=responses_with_missing,
         config=config,
     )
 
 
-def generate_from_questions(
-    questions: list[Question],
+def generate_from_item_params(
+    item_params: list[NRMItemParameters],
     abilities: NDArray[np.float64],
-    n_choices: int,
     missing_rate: float = 0.0,
-    response_model: ResponseModel | None = None,
     seed: int | None = None,
 ) -> tuple[NDArray[np.int8], list[str]]:
     """
-    Generate responses given pre-specified questions and abilities.
+    Generate responses given pre-specified item parameters and abilities.
 
     This is useful for controlled experiments where you want to fix
-    the question parameters or abilities.
+    the item parameters or abilities.
 
     Args:
-        questions: List of Question objects.
+        item_params: List of ItemParameters objects.
         abilities: Array of candidate abilities.
-        n_choices: Number of answer choices.
         missing_rate: Fraction of responses to mark as missing.
-        response_model: Response model to use.
         seed: Random seed.
 
     Returns:
@@ -129,15 +110,10 @@ def generate_from_questions(
     """
     rng = get_rng(seed)
 
-    if response_model is None:
-        response_model = ThreePLResponseModel()
-
     # Generate responses
     raw_responses = sample_responses_batch(
         abilities=abilities,
-        questions=questions,
-        n_choices=n_choices,
-        response_model=response_model,
+        item_params_list=item_params,
         rng=rng,
     )
 

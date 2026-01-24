@@ -10,12 +10,17 @@ This module defines the configuration parameters for:
 from dataclasses import dataclass
 
 # Default parameter bounds
-DEFAULT_DISCRIMINATION_BOUNDS = (0.01, 5.0)
+# Sum-to-zero identification allows negative discriminations
+DEFAULT_DISCRIMINATION_BOUNDS = (-5.0, 5.0)
 DEFAULT_INTERCEPT_BOUNDS = (-10.0, 10.0)
+
+# Default penalty settings for correct answer constraint
+DEFAULT_PENALTY_LAMBDA = 0.5
+DEFAULT_PENALTY_MARGIN = 0.1
 
 # Default convergence settings
 DEFAULT_MAX_EM_ITERATIONS = 500
-DEFAULT_EM_TOLERANCE = 1e-4
+DEFAULT_EM_TOLERANCE = 1e-3
 DEFAULT_MAX_LBFGS_ITERATIONS = 100
 DEFAULT_LBFGS_TOLERANCE = 1e-6
 
@@ -68,6 +73,23 @@ class ConvergenceConfig:
 
 
 @dataclass(frozen=True)
+class PenaltyConfig:
+    """
+    Configuration for correct answer soft penalty.
+
+    The penalty encourages a_correct > a_distractor without hard constraints.
+    Uses squared hinge: λ * Σ_{j≠correct} max(0, a_j - a_correct + margin)²
+
+    Attributes:
+        lambda_penalty: Penalty weight. Higher values enforce constraint more strictly.
+        margin: Minimum margin between correct and distractor discriminations.
+    """
+
+    lambda_penalty: float = DEFAULT_PENALTY_LAMBDA
+    margin: float = DEFAULT_PENALTY_MARGIN
+
+
+@dataclass(frozen=True)
 class ParameterBounds:
     """
     Bounds for item parameters during optimization.
@@ -90,15 +112,15 @@ class EstimationConfig:
         quadrature: Settings for Gauss-Hermite quadrature.
         convergence: Convergence criteria for EM algorithm.
         bounds: Parameter bounds for optimization.
+        penalty: Settings for correct answer soft penalty.
         model_version: Version string for reproducibility tracking.
-        verbose: Whether to print progress information.
     """
 
     quadrature: QuadratureConfig = QuadratureConfig()
     convergence: ConvergenceConfig = ConvergenceConfig()
     bounds: ParameterBounds = ParameterBounds()
-    model_version: str = "nrm-mml-em-v1"
-    verbose: bool = False
+    penalty: PenaltyConfig = PenaltyConfig()
+    model_version: str = "nrm-mml-em-v2"
 
 
 def default_config() -> EstimationConfig:

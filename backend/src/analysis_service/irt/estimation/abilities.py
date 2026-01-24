@@ -1,8 +1,5 @@
 """
 Ability estimation for IRT models.
-
-This module provides Expected A Posteriori (EAP) ability estimation,
-which is shared across different IRT models.
 """
 
 from dataclasses import dataclass
@@ -10,16 +7,12 @@ from dataclasses import dataclass
 import numpy as np
 from numpy.typing import NDArray
 
-from analysis_service.irt.estimation.base import FittedModel, P
 from analysis_service.irt.estimation.config import EstimationConfig
 from analysis_service.irt.estimation.data_models import (
     ResponseMatrix,
 )
-from analysis_service.irt.estimation.nrm.gradients import (
-    compute_nrm_probabilities,
-)
-from analysis_service.irt.estimation.nrm.parameters import NRMItemParameters
-from analysis_service.irt.estimation.parameters import ItemParameters
+from analysis_service.irt.estimation.estimator import IRTEstimationResult
+from analysis_service.irt.estimation.parameters import NRMItemParameters
 from analysis_service.irt.estimation.quadrature import get_quadrature
 
 
@@ -44,7 +37,7 @@ class AbilityEstimates:
 
 def estimate_abilities(
     data: ResponseMatrix,
-    model: FittedModel[P],
+    model: IRTEstimationResult,
     config: EstimationConfig | None = None,
 ) -> AbilityEstimates:
     """
@@ -88,7 +81,6 @@ def estimate_abilities(
             responses=data.responses[:, item_idx],
             params=item_params,
             theta=theta,
-            n_categories=data.n_categories,
             missing_mask=data.missing_mask[:, item_idx],
         )
         log_lik += item_log_lik
@@ -116,19 +108,19 @@ def estimate_abilities(
 
 def _compute_item_log_likelihood_for_abilities(
     responses: NDArray[np.int8],
-    params: ItemParameters,
+    params: NRMItemParameters,
     theta: NDArray[np.float64],
-    n_categories: int,
     missing_mask: NDArray[np.bool_],
 ) -> NDArray[np.float64]:
     """
     Compute log-likelihood contribution of one item for ability estimation.
 
-    Currently supports NRM parameters. Can be extended for other models.
+    Uses the item parameters' compute_probabilities method, which is
+    implemented by all ItemParameters subclasses (NRM, 3PL, etc.).
 
     Args:
         responses: Responses to this item, shape (n_candidates,).
-        params: Item parameters.
+        params: Item parameters (any subclass of ItemParameters).
         theta: Quadrature points, shape (n_quadrature,).
         n_categories: Number of response categories.
         missing_mask: Boolean mask where True = missing.
@@ -136,29 +128,11 @@ def _compute_item_log_likelihood_for_abilities(
     Returns:
         Log-likelihood matrix, shape (n_candidates, n_quadrature).
     """
-    if isinstance(params, NRMItemParameters):
-        return _nrm_item_log_likelihood(
-            responses, params, theta, n_categories, missing_mask
-        )
-    else:
-        raise TypeError(f"Unsupported parameter type: {type(params)}")
-
-
-def _nrm_item_log_likelihood(
-    responses: NDArray[np.int8],
-    params: NRMItemParameters,
-    theta: NDArray[np.float64],
-    n_categories: int,
-    missing_mask: NDArray[np.bool_],
-) -> NDArray[np.float64]:
-    """Compute NRM log-likelihood for ability estimation."""
     n_candidates = len(responses)
     n_quad = len(theta)
 
-    # Compute probabilities at each quadrature point
-    discriminations = np.array(params.discriminations, dtype=np.float64)
-    intercepts = np.array(params.intercepts, dtype=np.float64)
-    probs = compute_nrm_probabilities(theta, discriminations, intercepts)
+    # Compute probabilities at each quadrature point using the item's method
+    probs = params.compute_probabilities(theta)
 
     # Log probabilities
     log_probs = np.log(probs + 1e-300)

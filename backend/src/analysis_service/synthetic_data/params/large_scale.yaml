@@ -1,0 +1,68 @@
+# ============================================================================
+# Scalar parameters
+# ============================================================================
+
+n_candidates: 500000
+n_questions: 100
+n_choices: 4
+
+missing_rate: 0.05
+random_seed: 432
+
+# ============================================================================
+# Ability distrubtion
+# ============================================================================
+
+ability:
+  distribution: normal
+  params:
+    mean: 0.0
+    std: 3.0
+
+# ============================================================================
+# Marginal Distributions for IRT Parameters
+# ============================================================================
+# Each parameter has its own marginal distribution.
+
+nrm_parameters:
+  # Difficulty (b): How hard the question is on the IRT scale
+  # Typical range: -3 to +3, where higher = harder
+  intercept:
+    distribution: normal
+    params:
+      mean: 0.0
+      std: 1.0
+      
+  # Discrimination (a): How well the question separates high/low ability candidates
+  # Typical range: 0.5 to 2.5, must be positive
+  discrimination:
+    distribution: truncated_normal
+    params:
+      mean: 0.7
+      std: 0.3
+      lower: -0.4
+      upper: null
+
+  # Gap in discrimination between correct answer and the best distractor
+  correct_discrimination_gap:
+    distribution: truncated_normal
+    params:
+      mean: 0.2
+      std: 0.05
+      lower: 0.01
+      upper: 0.35
+  
+# ============================================================================
+# Parameter Correlations
+# ============================================================================
+# Pairwise correlations between difficulty, intercept, and correct_gap.
+# These capture realistic relationships in item parameters.
+#
+# The correlation matrix must be positive semi-definite (PSD).
+# Values must be in [-1, 1] and satisfy mathematical constraints.
+##
+
+correlations:
+  discrimination_intercept: 0.1          # Range: [-1, 1]
+  discrimination_correct_gap: -0.1       # Range: [-1, 1]
+  intercept_correct_gap: -0.02           # Range: [-1, 1]

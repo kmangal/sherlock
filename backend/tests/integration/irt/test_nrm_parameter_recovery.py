@@ -11,11 +11,11 @@ from scipy.stats import pearsonr
 
 from analysis_service.irt.estimation.config import EstimationConfig
 from analysis_service.irt.estimation.data_models import ResponseMatrix
-from analysis_service.irt.estimation.nrm.estimator import NRMEstimator
-from analysis_service.irt.estimation.nrm.gradients import (
+from analysis_service.irt.estimation.estimator import NRMEstimator
+from analysis_service.irt.estimation.gradients import (
     compute_nrm_probabilities,
 )
-from analysis_service.irt.estimation.nrm.parameters import NRMItemParameters
+from analysis_service.irt.estimation.parameters import NRMItemParameters
 from analysis_service.irt.estimation.quadrature import get_quadrature
 
 # Test configuration
@@ -43,14 +43,16 @@ def generate_true_parameters(
     """
     params = []
     for item_idx in range(n_items):
-        # discriminations: Uniform(-0.5, 1.5) - realistic range
-        free_a = rng.uniform(-0.5, 1.5, size=n_categories - 1)
-        # intercepts: Uniform(-1.5, 1.5)
-        free_b = rng.uniform(-1.5, 1.5, size=n_categories - 1)
+        # discriminations: Uniform(-0.5, 1.5)
+        a_vals = rng.uniform(-0.5, 1.5, size=n_categories - 1)
+        a_k = -np.sum(a_vals)
 
-        # Add reference category constraint (a_0 = 0, b_0 = 0)
-        discriminations = (0,) + tuple(float(a) for a in free_a)
-        intercepts = (0,) + tuple(float(b) for b in free_b)
+        # intercepts: Uniform(-1.5, 1.5)
+        b_vals = rng.uniform(-1.5, 1.5, size=n_categories - 1)
+        b_k = -np.sum(b_vals)
+
+        discriminations = (a_k,) + tuple(float(a) for a in a_vals)
+        intercepts = (b_k,) + tuple(float(b) for b in b_vals)
 
         params.append(
             NRMItemParameters(
@@ -115,14 +117,17 @@ def extract_free_parameters(
     all_a: list[float] = []
     all_b: list[float] = []
 
-    for item_params in params:
-        a_0 = item_params.discriminations[0]
-        for a_i in item_params.discriminations[1:]:
-            all_a.append(a_i + a_0)
+    # During estimation the last item is used to normalize so use it as the reference
+    # category
 
-        b_0 = item_params.intercepts[0]
-        for b_i in item_params.intercepts[1:]:
-            all_b.append(b_i + b_0)
+    for item_params in params:
+        a_mean = np.mean(item_params.discriminations)
+        diff_a = np.array(item_params.discriminations) - a_mean
+        for a_i in diff_a[:-1]:
+            all_a.append(a_i)
+
+        for b_i in item_params.intercepts[:-1]:
+            all_b.append(b_i)
 
     return np.array(all_a, dtype=np.float64), np.array(all_b, dtype=np.float64)
 
@@ -162,7 +167,7 @@ def test_parameter_recovery() -> None:
 
     # Step 3: Fit model
     data = ResponseMatrix(responses=responses, n_categories=N_CATEGORIES)
-    estimator = NRMEstimator()
+    estimator = NRMEstimator(rng=rng)
     fitted = estimator.fit(data)
 
     assert fitted.convergence_status == "converged", (
@@ -198,44 +203,6 @@ def test_parameter_recovery() -> None:
     )
     assert rmse_a < max_rmse, f"Discrimination RMSE {rmse_a:.3f} > {max_rmse}"
     assert rmse_b < max_rmse, f"Intercept RMSE {rmse_b:.3f} > {max_rmse}"
-
-
-def generate_unconstrained_parameters(
-    n_items: int,
-    n_categories: int,
-    rng: np.random.Generator,
-) -> list[NRMItemParameters]:
-    """
-    Generate NRM parameters with all a_i and b_i free to vary.
-
-    Unlike the constrained version, a_0 and b_0 are NOT fixed to 0.
-
-    Args:
-        n_items: Number of items.
-        n_categories: Number of response categories.
-        rng: Random number generator.
-
-    Returns:
-        List of NRMItemParameters with all parameters free.
-    """
-    params = []
-    for item_idx in range(n_items):
-        # All discriminations free: Uniform(-0.5, 1.5)
-        all_a = rng.uniform(-0.5, 1.5, size=n_categories)
-        # All intercepts free: Uniform(-1.5, 1.5)
-        all_b = rng.uniform(-1.5, 1.5, size=n_categories)
-
-        discriminations = tuple(float(a) for a in all_a)
-        intercepts = tuple(float(b) for b in all_b)
-
-        params.append(
-            NRMItemParameters(
-                item_id=item_idx,
-                discriminations=discriminations,
-                intercepts=intercepts,
-            )
-        )
-    return params
 
 
 def compute_empirical_probabilities(
@@ -324,7 +291,7 @@ def test_probability_recovery() -> None:
     rng = np.random.default_rng(SEED + 1)  # Different seed for independence
 
     # Step 1: Generate unconstrained true parameters
-    true_params = generate_unconstrained_parameters(N_ITEMS, N_CATEGORIES, rng)
+    true_params = generate_true_parameters(N_ITEMS, N_CATEGORIES, rng)
 
     # Step 2: Generate abilities and simulate responses
     abilities = rng.standard_normal(N_CANDIDATES)
@@ -333,7 +300,7 @@ def test_probability_recovery() -> None:
     # Step 3: Fit model
     data = ResponseMatrix(responses=responses, n_categories=N_CATEGORIES)
     config = EstimationConfig()
-    estimator = NRMEstimator(config)
+    estimator = NRMEstimator(config, rng=rng)
     fitted = estimator.fit(data)
 
     assert fitted.convergence_status == "converged", (

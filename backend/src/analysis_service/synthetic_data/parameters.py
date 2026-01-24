@@ -36,9 +36,9 @@ from analysis_service.synthetic_data.sampling import (
 def build_correlation_matrix(
     correlations: CorrelationsConfig,
 ) -> NDArray[np.float64]:
-    """Convert pairwise correlations to 3x3 correlation matrix.
+    """Convert pairwise correlations to 2x2 correlation matrix.
 
-    Order: [difficulty, discrimination, guessing]
+    Order: [discrimination, intercept, correct_gap]
 
     Args:
         correlations: Pairwise correlation configuration
@@ -50,9 +50,9 @@ def build_correlation_matrix(
         ValueError: If correlations do not form a valid (PSD) correlation matrix
     """
     R = np.eye(3, dtype=np.float64)
-    R[0, 1] = R[1, 0] = correlations.difficulty_discrimination
-    R[0, 2] = R[2, 0] = correlations.difficulty_guessing
-    R[1, 2] = R[2, 1] = correlations.discrimination_guessing
+    R[0, 1] = R[1, 0] = correlations.discrimination_intercept
+    R[0, 2] = R[2, 0] = correlations.discrimination_correct_gap
+    R[1, 2] = R[2, 1] = correlations.intercept_correct_gap
 
     if not _validate_psd(R):
         raise ValueError(
@@ -96,18 +96,16 @@ def create_distribution(config: DistributionConfig) -> Distribution:
 # =============================================================================
 
 
-class CorrelatedParameters(TypedDict):
-    difficulty: NDArray[np.float64]
-    discrimination: NDArray[np.float64]
-    guessing: NDArray[np.float64]
+class SamplingDistributions(TypedDict):
+    discrimination: Distribution
+    intercept: Distribution
+    correct_discrimination_gap: Distribution
 
 
 @dataclass
 class SampledParameters:
-    difficulty: NDArray[np.float64]
     discrimination: NDArray[np.float64]
-    guessing: NDArray[np.float64]
-    distractor_quality: NDArray[np.float64]
+    intercept: NDArray[np.float64]
 
 
 class JointParameterSampler:
@@ -116,9 +114,6 @@ class JointParameterSampler:
     The copula approach allows specifying:
     - Arbitrary marginal distributions for each parameter
     - Pairwise correlations between parameters
-
-    Difficulty, discrimination, and guessing are sampled jointly with correlations.
-    Distractor quality is sampled independently (per-distractor, not per-question).
     """
 
     def __init__(self, config: GenerationConfig) -> None:
@@ -129,52 +124,24 @@ class JointParameterSampler:
         self._cholesky = np.linalg.cholesky(self.correlation_matrix)
 
         # Create distributions for each parameter using the registry
-        self._distributions = {
-            "difficulty": create_distribution(
-                config.irt_parameters.difficulty
-            ),
+        self._distributions: SamplingDistributions = {
             "discrimination": create_distribution(
-                config.irt_parameters.discrimination
+                config.nrm_parameters.discrimination
             ),
-            "guessing": create_distribution(config.irt_parameters.guessing),
+            "intercept": create_distribution(config.nrm_parameters.intercept),
+            "correct_discrimination_gap": create_distribution(
+                config.nrm_parameters.correct_discrimination_gap
+            ),
         }
-        self._distractor_dist = create_distribution(
-            config.irt_parameters.distractor_quality
-        )
 
     def sample(
-        self, n_questions: int, n_distractors: int, rng: Generator
+        self,
+        n_questions: int,
+        n_choices: int,
+        correct_answer_ix: NDArray[np.int64],
+        rng: Generator,
     ) -> SampledParameters:
-        """Sample IRT parameters for multiple questions.
-
-        Args:
-            n_questions: Number of questions to sample parameters for
-            n_distractors: Number of distractors per question (n_choices - 1)
-            rng: NumPy random generator
-
-        Returns:
-            Dictionary with keys:
-                - "difficulty": shape (n_questions,)
-                - "discrimination": shape (n_questions,)
-                - "guessing": shape (n_questions,)
-                - "distractor_quality": shape (n_questions, n_distractors)
-        """
-        correlated = self._sample_correlated(n_questions, rng)
-        distractor_quality = self._sample_distractor_quality(
-            n_questions, n_distractors, rng
-        )
-
-        return SampledParameters(
-            difficulty=correlated["difficulty"],
-            discrimination=correlated["discrimination"],
-            guessing=correlated["guessing"],
-            distractor_quality=distractor_quality,
-        )
-
-    def _sample_correlated(
-        self, n_questions: int, rng: Generator
-    ) -> CorrelatedParameters:
-        """Sample difficulty, discrimination, guessing with correlations.
+        """Sample item parameters with correlations.
 
         Algorithm (Gaussian copula):
         1. Draw independent standard normals Z ~ N(0, I), shape (n, 3)
@@ -182,8 +149,9 @@ class JointParameterSampler:
         3. Transform to uniform: U = norm.cdf(Y)
         4. Apply inverse marginal CDF (ppf) for each parameter
         """
+
         # Step 1: Independent standard normals
-        Z = rng.standard_normal((n_questions, 3))
+        Z = rng.standard_normal((n_questions * n_choices, 3))
 
         # Step 2: Apply correlation via Cholesky
         Y = Z @ self._cholesky.T
@@ -192,32 +160,39 @@ class JointParameterSampler:
         U = stats.norm.cdf(Y)
 
         # Step 4: Apply inverse marginal CDFs
-        result: CorrelatedParameters = {
-            "difficulty": self._distributions["difficulty"].inverse_cdf(
-                U[:, 0]
-            ),
-            "discrimination": self._distributions[
-                "discrimination"
-            ].inverse_cdf(U[:, 1]),
-            "guessing": self._distributions["guessing"].inverse_cdf(U[:, 2]),
-        }
-
-        return result
-
-    def _sample_distractor_quality(
-        self, n_questions: int, n_distractors: int, rng: Generator
-    ) -> NDArray[np.float64]:
-        """Sample distractor quality independently for each question and distractor.
-
-        Uses the Distribution's sample method for direct sampling (no copula needed).
-        """
-        # Sample flat array and reshape
-        flat_samples = self._distractor_dist.sample(
-            n_questions * n_distractors, rng
+        sampled_discriminations = self._distributions[
+            "discrimination"
+        ].inverse_cdf(U[:, 0])
+        sampled_discriminations = sampled_discriminations.reshape(
+            (n_questions, n_choices)
         )
-        result: NDArray[np.float64] = flat_samples.reshape(
-            n_questions, n_distractors
+
+        sampled_intercepts = self._distributions["discrimination"].inverse_cdf(
+            U[:, 1]
         )
+        sampled_intercepts = sampled_intercepts.reshape(
+            (n_questions, n_choices)
+        )
+        sampled_gap = self._distributions[
+            "correct_discrimination_gap"
+        ].inverse_cdf(U[:, 2])
+        sampled_gap = sampled_gap.reshape((n_questions, n_choices))
+
+        # Zero out all values that do not pertain to the correct answer
+        rows = np.arange(sampled_gap.shape[0])
+        vals = sampled_gap[rows, correct_answer_ix]
+        sampled_gap[:] = 0
+        sampled_gap[rows, correct_answer_ix] = vals
+
+        assert sampled_discriminations.shape == sampled_gap.shape
+
+        sampled_discriminations += sampled_gap
+
+        result = SampledParameters(
+            discrimination=sampled_discriminations,
+            intercept=sampled_intercepts,
+        )
+
         return result
 
 
@@ -254,8 +229,5 @@ def load_config(yaml_path: Path) -> GenerationConfig:
     # Convert to typed dataclass
     result = OmegaConf.to_object(config)
     assert isinstance(result, GenerationConfig)
-
-    # Validate correlation matrix is PSD
-    build_correlation_matrix(result.correlations)
 
     return result

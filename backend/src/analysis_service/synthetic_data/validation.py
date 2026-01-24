@@ -87,8 +87,13 @@ def compute_accuracy_by_ability(
     """
     abilities = data.abilities
     responses = data.raw_responses
+    item_params = data.item_params
+
     correct_answers = np.array(
-        [q.correct_answer for q in data.questions], dtype=np.int64
+        [p.correct_answer for p in item_params], dtype=np.int64
+    )
+    assert not np.any(np.isnan(correct_answers)), (
+        "All items require a correct answer"
     )
 
     # Create bins
@@ -224,8 +229,14 @@ def compute_item_statistics(
             - missing_rates: Missing rate for each item
     """
     responses = data.raw_responses
+    item_params = data.item_params
+
     correct_answers = np.array(
-        [q.correct_answer for q in data.questions], dtype=np.int64
+        [p.correct_answer for p in item_params], dtype=np.int64
+    )
+
+    assert not np.any(np.isnan(correct_answers)), (
+        "All items require correct answers"
     )
 
     n_questions = data.config.n_questions

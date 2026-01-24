@@ -6,7 +6,10 @@ __pycache__/
 *.xlsx
 *.xls
 *.csv
+
+# Ignore reports
 *.json
+*.md
 
 # Claude Code plans
 PLAN.md

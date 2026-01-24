@@ -1,66 +1,66 @@
 """
-Question parameter sampling.
+Item parameter sampling factories for synthetic data generation.
 
-This module defines question-level parameters including difficulty,
-discrimination, guessing, and distractor quality for the 3PL IRT model.
+This module provides factory functions for sampling IRT item parameters
+from configured distributions. Works with the synthetic data generation
+pipeline to create realistic exam item parameters.
 """
 
 from numpy.random import Generator
 
-from analysis_service.core.data_models import Question
 from analysis_service.core.utils import get_rng
+from analysis_service.irt.estimation.parameters import (
+    NRMItemParameters,
+)
 from analysis_service.synthetic_data.config import GenerationConfig
 from analysis_service.synthetic_data.parameters import (
     JointParameterSampler,
 )
 
 
-def sample_questions(
+def sample_item_parameters(
     config: GenerationConfig,
     rng: Generator | None = None,
-) -> list[Question]:
+) -> list[NRMItemParameters]:
     """
-    Sample question parameters for an exam using the 3PL IRT model.
+    Sample item parameters for an exam.
 
-    Parameters are sampled from a joint distribution specified by the config:
-    - Difficulty, discrimination, guessing are sampled jointly with correlations
-    - Distractor quality is sampled independently per distractor
+    Parameters are sampled from a joint distribution specified by the config
 
     Args:
-        exam_spec: Exam specification (number of questions, choices, correct answers).
-        params: Question parameter configuration. If None, uses defaults.
+        config: Generation configuration with parameter distributions.
         rng: Random number generator.
 
     Returns:
-        List of Question objects with sampled parameters.
+        List of NRMItemParameters objects with sampled parameters.
     """
     if rng is None:
         rng = get_rng(config.random_seed)
 
-    n_questions = config.n_questions
+    n_items = config.n_questions
     n_choices = config.n_choices
-    n_distractors = n_choices - 1
+
+    # Determine correct answers
+    correct_answers = rng.integers(0, n_choices, size=n_items)
 
     # Sample all parameters jointly
     sampler = JointParameterSampler(config)
-    sampled = sampler.sample(n_questions, n_distractors, rng)
+    sampled = sampler.sample(
+        n_questions=n_items,
+        n_choices=n_choices,
+        correct_answer_ix=correct_answers,
+        rng=rng,
+    )
 
-    # Determine correct answers
-    correct_answers = rng.integers(0, n_choices, size=n_questions).tolist()
-
-    # Build Question objects
-    questions = []
-    for i in range(n_questions):
-        q = Question(
-            question_id=i,
-            difficulty=float(sampled.difficulty[i]),
-            discrimination=float(sampled.discrimination[i]),
-            guessing=float(sampled.guessing[i]),
+    # Build NRMItemParameters objects
+    item_params = []
+    for i in range(n_items):
+        params = NRMItemParameters(
+            item_id=i,
+            discriminations=tuple(sampled.discrimination[i, :]),
+            intercepts=tuple(sampled.intercept[i, :]),
             correct_answer=correct_answers[i],
-            distractor_quality=tuple(
-                float(dq) for dq in sampled.distractor_quality[i]
-            ),
         )
-        questions.append(q)
+        item_params.append(params)
 
-    return questions
+    return item_params

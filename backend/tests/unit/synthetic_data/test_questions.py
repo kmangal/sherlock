@@ -3,7 +3,7 @@ import pytest
 from analysis_service.core.utils import get_rng
 from analysis_service.synthetic_data.config import GenerationConfig
 from analysis_service.synthetic_data.presets import get_preset
-from analysis_service.synthetic_data.questions import sample_questions
+from analysis_service.synthetic_data.questions import sample_item_parameters
 
 
 @pytest.fixture
@@ -11,62 +11,71 @@ def baseline_config() -> GenerationConfig:
     return get_preset("baseline")
 
 
-class TestSampleQuestions:
+class TestSampleParams:
     def test_returns_correct_count(
         self, baseline_config: GenerationConfig
     ) -> None:
-        questions = sample_questions(baseline_config, rng=get_rng(42))
+        params = sample_item_parameters(baseline_config, rng=get_rng(42))
 
-        assert len(questions) == baseline_config.n_questions
+        assert len(params) == baseline_config.n_questions
 
-    def test_creates_valid_questions(
+    def test_creates_valid_params(
         self, baseline_config: GenerationConfig
     ) -> None:
-        questions = sample_questions(baseline_config, rng=get_rng(42))
+        params = sample_item_parameters(baseline_config, rng=get_rng(42))
 
         n_choices = baseline_config.n_choices
-        n_distractors = n_choices - 1
 
-        for q in questions:
-            assert q.correct_answer is not None
-            assert 0 <= q.correct_answer < n_choices
-            assert q.discrimination > 0
-            assert 0 <= q.guessing <= 1
-            assert len(q.distractor_quality) == n_distractors
-            assert all(dq >= 0 for dq in q.distractor_quality)
+        for p in params:
+            assert p.correct_answer is not None
+            assert 0 <= p.correct_answer < n_choices
 
-    def test_question_ids_are_sequential(
+    def test_item_ids_are_sequential(
         self, baseline_config: GenerationConfig
     ) -> None:
-        questions = sample_questions(baseline_config, rng=get_rng(42))
+        params = sample_item_parameters(baseline_config, rng=get_rng(42))
 
-        for i, q in enumerate(questions):
-            assert q.question_id == i
+        for i, p in enumerate(params):
+            assert p.item_id == i
 
     def test_reproducible_with_same_seed(
         self, baseline_config: GenerationConfig
     ) -> None:
-        q1 = sample_questions(baseline_config, rng=get_rng(42))
-        q2 = sample_questions(baseline_config, rng=get_rng(42))
+        p1 = sample_item_parameters(baseline_config, rng=get_rng(42))
+        p2 = sample_item_parameters(baseline_config, rng=get_rng(42))
 
-        assert len(q1) == len(q2)
-        for i in range(len(q1)):
-            assert q1[i].difficulty == q2[i].difficulty
-            assert q1[i].discrimination == q2[i].discrimination
-            assert q1[i].guessing == q2[i].guessing
-            assert q1[i].correct_answer == q2[i].correct_answer
-            assert q1[i].distractor_quality == q2[i].distractor_quality
+        assert len(p1) == len(p2)
+        for i in range(len(p1)):
+            assert p1[i].discriminations == p2[i].discriminations
+            assert p1[i].intercepts == p2[i].intercepts
+            assert p1[i].correct_answer == p2[i].correct_answer
 
-    def test_different_seeds_produce_different_questions(
+    def test_different_seeds_produce_different_params(
         self, baseline_config: GenerationConfig
     ) -> None:
-        q1 = sample_questions(baseline_config, rng=get_rng(42))
-        q2 = sample_questions(baseline_config, rng=get_rng(99))
+        p1 = sample_item_parameters(baseline_config, rng=get_rng(42))
+        p2 = sample_item_parameters(baseline_config, rng=get_rng(99))
 
-        # At least some questions should differ
-        differences = sum(
+        # At least some items should differ
+        discrimination_differences = sum(
             1
-            for a, b in zip(q1, q2, strict=True)
-            if a.difficulty != b.difficulty
+            for a, b in zip(p1, p2, strict=True)
+            if a.discriminations != b.discriminations
         )
-        assert differences > 0
+        assert discrimination_differences > 0
+
+        # At least some items should differ
+        intercept_differences = sum(
+            1
+            for a, b in zip(p1, p2, strict=True)
+            if a.intercepts != b.intercepts
+        )
+        assert intercept_differences > 0
+
+        # At least some items should differ
+        correct_answer_differences = sum(
+            1
+            for a, b in zip(p1, p2, strict=True)
+            if a.correct_answer != b.correct_answer
+        )
+        assert correct_answer_differences > 0

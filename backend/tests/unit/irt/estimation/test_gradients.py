@@ -6,7 +6,7 @@ Verifies analytical gradients match numerical gradients.
 
 import numpy as np
 
-from analysis_service.irt.estimation.nrm.gradients import (
+from analysis_service.irt.estimation.gradients import (
     compute_nrm_probabilities,
     nrm_negative_expected_log_likelihood,
     nrm_negative_expected_log_likelihood_gradient,
@@ -64,7 +64,7 @@ class TestNRMGradients:
         n_candidates = 50
 
         # Setup
-        theta = np.linspace(-3, 3, n_quadrature)
+        theta = np.linspace(-3, 3, n_quadrature, dtype=np.float64)
 
         # Random posteriors (normalized per candidate, float32 per UPDATES.md)
         rng = np.random.default_rng(42)
@@ -123,7 +123,7 @@ class TestNRMGradients:
         n_quadrature = 5
         n_candidates = 20
 
-        theta = np.linspace(-2, 2, n_quadrature)
+        theta = np.linspace(-2, 2, n_quadrature, dtype=np.float64)
 
         # Uniform posteriors (float32)
         posteriors = (
@@ -150,7 +150,7 @@ class TestNRMGradients:
         n_quadrature = 21
         n_candidates = 100
 
-        theta = np.linspace(-3, 3, n_quadrature)
+        theta = np.linspace(-3, 3, n_quadrature, dtype=np.float64)
 
         rng = np.random.default_rng(123)
         posteriors_raw = rng.random((n_candidates, n_quadrature))

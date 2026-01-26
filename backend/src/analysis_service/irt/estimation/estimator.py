@@ -115,13 +115,21 @@ class NRMEstimator:
         """Access quadrature points and weights."""
         return self._quadrature
 
-    def _check_convergence(self, current_ll: float, prev_ll: float) -> bool:
+    def _check_convergence(
+        self,
+        current_ll: float,
+        prev_ll: float,
+        current_params: list[NRMItemParameters],
+        prev_params: list[NRMItemParameters],
+    ) -> bool:
         """
         Check if EM has converged based on log-likelihood change.
 
         Args:
             current_ll: Current log-likelihood.
             prev_ll: Previous log-likelihood.
+            current_params: Current item parameters
+            prev_params: Prevoius item parameters
 
         Returns:
             True if converged.
@@ -129,9 +137,30 @@ class NRMEstimator:
         if prev_ll == -np.inf:
             return False
 
-        # Absolute change in log-likelihood
-        abs_change = abs(current_ll - prev_ll)
-        return bool(abs_change < self.config.convergence.em_tolerance)
+        # Relative change in log-likelihood
+        rel_ll_change = abs(current_ll - prev_ll) / abs(prev_ll)
+
+        # Change in parameter estimates
+        current_params_matrix = np.hstack(
+            [current_params[i].to_array() for i in range(len(current_params))]
+        )
+        prev_params_matrix = np.hstack(
+            [prev_params[i].to_array() for i in range(len(prev_params))]
+        )
+
+        assert current_params_matrix.shape == prev_params_matrix.shape
+
+        param_change = np.max(
+            np.abs(current_params_matrix - prev_params_matrix)
+            / (np.abs(prev_params_matrix) + 1e-10)
+        )
+
+        ll_converged = rel_ll_change < self.config.convergence.em_tolerance
+        param_converged = (
+            param_change < self.config.convergence.param_tolerance
+        )
+
+        return bool(ll_converged and param_converged)
 
     def _e_step(
         self,
@@ -190,7 +219,7 @@ class NRMEstimator:
         )
         total_ll = float(np.sum(log_marginal))
 
-        # Cast posteriors to float32 to reduce memory (per UPDATES.md)
+        # Cast posteriors to float32 to reduce memory
         # Precision is sufficient for EM weights
         posteriors_f32: NDArray[np.float32] = posteriors.astype(np.float32)
 
@@ -263,13 +292,17 @@ class NRMEstimator:
                 convergence_status = ConvergenceStatus.FAILED
                 break
 
-            if self._check_convergence(e_result.log_likelihood, prev_ll):
+            updated_params = self._m_step(data, e_result.posteriors, params)
+
+            if self._check_convergence(
+                e_result.log_likelihood, prev_ll, updated_params, params
+            ):
                 convergence_status = ConvergenceStatus.CONVERGED
                 total_iterations += iteration + 1
                 break
 
             prev_ll = e_result.log_likelihood
-            params = self._m_step(data, e_result.posteriors, params)
+            params = updated_params
         else:
             total_iterations += self.config.convergence.max_em_iterations
 

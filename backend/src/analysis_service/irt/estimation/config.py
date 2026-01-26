@@ -20,7 +20,8 @@ DEFAULT_PENALTY_MARGIN = 0.1
 
 # Default convergence settings
 DEFAULT_MAX_EM_ITERATIONS = 500
-DEFAULT_EM_TOLERANCE = 1e-3
+DEFAULT_EM_TOLERANCE = 1e-6
+DEFAULT_PARAM_TOLERANCE = 1e-2
 DEFAULT_MAX_LBFGS_ITERATIONS = 100
 DEFAULT_LBFGS_TOLERANCE = 1e-6
 
@@ -67,6 +68,7 @@ class ConvergenceConfig:
 
     max_em_iterations: int = DEFAULT_MAX_EM_ITERATIONS
     em_tolerance: float = DEFAULT_EM_TOLERANCE
+    param_tolerance: float = DEFAULT_PARAM_TOLERANCE
     max_lbfgs_iterations: int = DEFAULT_MAX_LBFGS_ITERATIONS
     lbfgs_tolerance: float = DEFAULT_LBFGS_TOLERANCE
     warmup_iterations: int = DEFAULT_WARMUP_ITERATIONS

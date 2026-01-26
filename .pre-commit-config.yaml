@@ -31,7 +31,15 @@ repos:
         files: ^backend/
         pass_filenames: false
 
-  # -----------------------
+      - id: pytest
+        name: pytest
+        entry: uv run python -m pytest ./backend/tests/
+        language: system
+        types: [python]
+        files: ^backend/
+        pass_filenames: false
+
+  # ----------------------
   # Commitizen
   # -----------------------
   - repo: https://github.com/commitizen-tools/commitizen

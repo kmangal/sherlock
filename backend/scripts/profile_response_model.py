@@ -4,7 +4,7 @@ Profile memory usage during IRT model estimation.
 
 Uses memory-profiler to track memory allocations during model fitting.
 Uses tracemalloc filtered to source code to identify top allocators.
-Outputs JSON and Markdown reports with timing and memory statistics.
+Outputs JSON report with timing and memory statistics.
 """
 
 import json
@@ -13,7 +13,6 @@ import time
 import tracemalloc
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from enum import Enum
 from pathlib import Path
 from typing import Any
 
@@ -36,11 +35,10 @@ from analysis_service.synthetic_data.presets import (
 )
 from analysis_service.synthetic_data.utils import letter_to_index
 
-SYNTHETIC_DATA_DIR = Path(__file__).parent.parent / "data" / "synthetic"
+BACKEND_DIR = Path(__file__).parent.parent.absolute()
+SYNTHETIC_DATA_DIR = BACKEND_DIR / "data" / "synthetic"
 
-DEFAULT_OUTPUT_DIR = (
-    Path(__file__).parent.parent / "reports" / "estimator_memory_profile"
-)
+DEFAULT_OUTPUT_DIR = BACKEND_DIR / "reports" / "estimator_memory_profile"
 DEFAULT_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 # Source code filter for tracemalloc
@@ -53,12 +51,6 @@ logging.basicConfig(
 logger = logging.getLogger("scripts.profile_response_model")
 
 app = typer.Typer()
-
-
-class EstimatorName(str, Enum):
-    """Available estimator types."""
-
-    nrm = "nrm"
 
 
 @dataclass
@@ -79,7 +71,6 @@ class ProfilingResult:
     # Metadata
     timestamp: str
     dataset: str
-    estimator: str
 
     # Data shape
     n_candidates: int
@@ -208,11 +199,9 @@ def load_dataset(dataset: str) -> tuple[ResponseMatrix, str]:
     )
 
 
-def get_estimator(name: EstimatorName) -> NRMEstimator:
-    """Get estimator instance by name."""
-    if name == EstimatorName.nrm:
-        return NRMEstimator()
-    raise ValueError(f"Unknown estimator: {name}")
+def get_estimator() -> NRMEstimator:
+    """Get estimator instance."""
+    return NRMEstimator()
 
 
 def get_source_allocators(n_top: int = 10) -> list[tuple[str, int]]:
@@ -260,7 +249,7 @@ def profile_fit(
 
     # Profile the fit call
     start_time = time.perf_counter()
-    mem_timeline = memory_usage(fit_wrapper, interval=0.1, max_iterations=1)
+    mem_timeline = memory_usage((fit_wrapper,), interval=0.1, max_iterations=1)  # pyright: ignore[reportArgumentType]
     duration = time.perf_counter() - start_time
 
     # Get top allocators from source code
@@ -285,7 +274,6 @@ def profile_fit(
 
 def build_profiling_result(
     dataset_name: str,
-    estimator_name: str,
     data: ResponseMatrix,
     fitted_model: IRTEstimationResult,
     duration: float,
@@ -297,7 +285,6 @@ def build_profiling_result(
     return ProfilingResult(
         timestamp=datetime.now(UTC).isoformat(),
         dataset=dataset_name,
-        estimator=estimator_name,
         n_candidates=data.n_candidates,
         n_items=data.n_items,
         n_categories=data.n_categories,
@@ -342,7 +329,6 @@ def result_to_dict(result: ProfilingResult) -> dict[str, Any]:
         "metadata": {
             "timestamp": result.timestamp,
             "dataset": result.dataset,
-            "estimator": result.estimator,
         },
         "data_shape": {
             "n_candidates": result.n_candidates,
@@ -359,7 +345,10 @@ def result_to_dict(result: ProfilingResult) -> dict[str, Any]:
             "final_mib": result.final_mib,
             "delta_mib": result.delta_mib,
             "top_allocators": [
-                {"location": loc, "size_bytes": size}
+                {
+                    "location": Path(loc).relative_to(BACKEND_DIR).as_posix(),
+                    "size_bytes": size,
+                }
                 for loc, size in result.top_allocators
             ],
         },
@@ -380,86 +369,11 @@ def write_json_report(result: ProfilingResult, path: Path) -> None:
     logger.info("Wrote JSON report: %s", path)
 
 
-def write_markdown_report(result: ProfilingResult, path: Path) -> None:
-    """Write profiling result as Markdown."""
-    lines = [
-        f"# Memory Profile: {result.dataset}",
-        "",
-        "## Metadata",
-        "",
-        f"- **Timestamp**: {result.timestamp}",
-        f"- **Dataset**: {result.dataset}",
-        f"- **Estimator**: {result.estimator}",
-        "",
-        "## Data Shape",
-        "",
-        "| Metric | Value |",
-        "|--------|-------|",
-        f"| Candidates | {result.n_candidates:,} |",
-        f"| Items | {result.n_items:,} |",
-        f"| Categories | {result.n_categories} |",
-        f"| Response Matrix | {format_bytes(result.response_matrix_bytes)} |",
-        "",
-        "## Timing",
-        "",
-        f"- **Fit Duration**: {result.fit_duration_seconds:.3f}s",
-        "",
-        "## Memory Usage",
-        "",
-        "| Metric | Value |",
-        "|--------|-------|",
-        f"| Baseline | {format_mib(result.baseline_mib)} |",
-        f"| Peak | {format_mib(result.peak_mib)} |",
-        f"| Final | {format_mib(result.final_mib)} |",
-        f"| Delta (Peak - Baseline) | {format_mib(result.delta_mib)} |",
-        "",
-        "## Top Allocators (Source Code Only)",
-        "",
-    ]
-
-    if result.top_allocators:
-        for i, (location, size) in enumerate(result.top_allocators, 1):
-            # Extract just the filename and line number for readability
-            # Location format: "path/to/file.py:123"
-            parts = location.rsplit("\\", 1)
-            if len(parts) == 2:
-                loc_display = parts[1]
-            else:
-                parts = location.rsplit("/", 1)
-                loc_display = parts[1] if len(parts) == 2 else location
-            lines.append(f"{i}. `{loc_display}` - {format_bytes(size)}")
-    else:
-        lines.append("_No allocations found in source code._")
-
-    lines.extend(
-        [
-            "",
-            "## Model Fit",
-            "",
-            f"- **Iterations**: {result.n_iterations}",
-            f"- **Convergence**: {result.convergence_status}",
-            f"- **Log-Likelihood**: {result.log_likelihood:.4f}",
-            "",
-        ]
-    )
-
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with open(path, "w") as f:
-        f.write("\n".join(lines))
-    logger.info("Wrote Markdown report: %s", path)
-
-
 @app.command()
 def main(
     dataset: str = typer.Argument(
         ...,
         help="Preset name or path to CSV file",
-    ),
-    estimator: EstimatorName = typer.Option(
-        EstimatorName.nrm,
-        "--estimator",
-        "-e",
-        help="Estimator to use",
     ),
     output_dir: Path = typer.Option(
         DEFAULT_OUTPUT_DIR,
@@ -468,7 +382,7 @@ def main(
         help="Directory for output reports",
     ),
     verbose: bool = typer.Option(
-        False,
+        True,
         "--verbose",
         "-v",
         help="Enable verbose logging",
@@ -488,7 +402,7 @@ def main(
     )
 
     # Get estimator
-    est = get_estimator(estimator)
+    est = get_estimator()
 
     # Profile fit
     logger.info("Starting fit...")
@@ -498,7 +412,6 @@ def main(
     # Build result
     result = build_profiling_result(
         dataset_name=dataset_name,
-        estimator_name=estimator.value,
         data=data,
         fitted_model=fitted_model,
         duration=duration,
@@ -509,12 +422,9 @@ def main(
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
     base_name = f"profile_{dataset_name}_{ts}"
 
-    # Write reports
+    # Write report
     json_path = output_dir / f"{base_name}.json"
-    md_path = output_dir / f"{base_name}.md"
-
     write_json_report(result, json_path)
-    write_markdown_report(result, md_path)
 
     # Print summary
     typer.echo("")
@@ -532,7 +442,7 @@ def main(
         f"Convergence: {fitted_model.convergence_status} "
         f"({fitted_model.n_iterations} iterations)"
     )
-    typer.echo(f"Reports: {json_path}, {md_path}")
+    typer.echo(f"Report: {json_path}")
 
 
 if __name__ == "__main__":

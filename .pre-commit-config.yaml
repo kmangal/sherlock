@@ -13,10 +13,10 @@ repos:
         files: ^backend/
         pass_filenames: false
 
-      # Ruff linter with auto-fix
+      # Ruff linter
       - id: ruff-check
         name: ruff check
-        entry: uv run --directory backend ruff check --fix
+        entry: uv run --directory backend ruff check
         language: system
         types: [python]
         files: ^backend/
@@ -33,7 +33,7 @@ repos:
 
       - id: pytest
         name: pytest
-        entry: uv run python -m pytest ./backend/tests/
+        entry: uv run python -m pytest ./backend/tests/ -v -s
         language: system
         types: [python]
         files: ^backend/

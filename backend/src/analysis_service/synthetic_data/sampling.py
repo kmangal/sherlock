@@ -14,6 +14,7 @@ import numpy as np
 from numpy.random import Generator
 from numpy.typing import NDArray
 from scipy import stats
+from scipy.optimize import brentq
 
 from analysis_service.core.utils import get_rng
 
@@ -150,7 +151,6 @@ class MixtureDistribution(Distribution):
 
         We solve F(x) = q numerically using bisection.
         """
-        from scipy.optimize import brentq
 
         q = np.atleast_1d(q)
         result = np.empty_like(q, dtype=np.float64)

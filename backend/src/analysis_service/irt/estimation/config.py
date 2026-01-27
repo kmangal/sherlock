@@ -7,7 +7,11 @@ This module defines the configuration parameters for:
 - Overall estimation settings
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+
+import toml
+
+from analysis_service.core.paths import get_backend_root_dir
 
 # Default parameter bounds
 # Sum-to-zero identification allows negative discriminations
@@ -31,6 +35,21 @@ DEFAULT_WARMUP_ITERATIONS = 2
 
 # Default quadrature settings
 DEFAULT_QUADRATURE_POINTS = 41
+
+
+def _get_backend_version() -> str:
+    root_dir = get_backend_root_dir()
+    with open(root_dir / "pyproject.toml") as f:
+        data = toml.load(f)
+
+    # Try standard format first
+    version = data.get("project", {}).get("version")
+
+    if not version:
+        raise ValueError("Version not found in pyproject.toml")
+
+    assert isinstance(version, str)
+    return version
 
 
 @dataclass(frozen=True)
@@ -122,7 +141,7 @@ class EstimationConfig:
     convergence: ConvergenceConfig = ConvergenceConfig()
     bounds: ParameterBounds = ParameterBounds()
     penalty: PenaltyConfig = PenaltyConfig()
-    model_version: str = "nrm-mml-em-v2"
+    model_version: str = field(default_factory=_get_backend_version)
 
 
 def default_config() -> EstimationConfig:

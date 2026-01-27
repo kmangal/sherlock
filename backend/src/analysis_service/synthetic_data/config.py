@@ -76,6 +76,109 @@ def _default_correlations() -> CorrelationsConfig:
 
 
 @dataclass
+class NoMissingParams:
+    """Parameters for no missingness model."""
+
+    pass
+
+
+@dataclass
+class MCARParams:
+    """Parameters for MCAR missingness model.
+
+    Attributes:
+        rate: Probability that any given response is missing. Must be in [0, 1).
+    """
+
+    rate: float = 0.05
+
+    def __post_init__(self) -> None:
+        if not (0.0 <= self.rate < 1.0):
+            raise ValueError(f"rate must be in [0, 1), got {self.rate}")
+
+
+@dataclass
+class AbilityDependentParams:
+    """Parameters for ability-dependent missingness model.
+
+    Lower ability candidates are more likely to skip questions.
+
+    Attributes:
+        base_rate: Base missing rate for all candidates.
+        ability_effect: How much each unit below threshold increases missing rate.
+        ability_threshold: Ability level below which missingness increases.
+        max_rate: Maximum missing rate for any candidate.
+    """
+
+    base_rate: float = 0.02
+    ability_effect: float = 0.05
+    ability_threshold: float = 0.0
+    max_rate: float = 0.3
+
+    def __post_init__(self) -> None:
+        if not (0.0 <= self.base_rate < 1.0):
+            raise ValueError(
+                f"base_rate must be in [0, 1), got {self.base_rate}"
+            )
+        if self.ability_effect < 0:
+            raise ValueError(
+                f"ability_effect must be >= 0, got {self.ability_effect}"
+            )
+        if not (0.0 < self.max_rate <= 1.0):
+            raise ValueError(
+                f"max_rate must be in (0, 1], got {self.max_rate}"
+            )
+
+
+@dataclass
+class PositionDependentParams:
+    """Parameters for position-dependent missingness model.
+
+    Later questions are more likely to be skipped due to test fatigue.
+
+    Attributes:
+        base_rate: Missing rate for the first question.
+        position_effect: Increase in missing rate per question.
+        max_rate: Maximum missing rate for any question.
+    """
+
+    base_rate: float = 0.01
+    position_effect: float = 0.002
+    max_rate: float = 0.2
+
+    def __post_init__(self) -> None:
+        if not (0.0 <= self.base_rate < 1.0):
+            raise ValueError(
+                f"base_rate must be in [0, 1), got {self.base_rate}"
+            )
+        if self.position_effect < 0:
+            raise ValueError(
+                f"position_effect must be >= 0, got {self.position_effect}"
+            )
+        if not (0.0 < self.max_rate <= 1.0):
+            raise ValueError(
+                f"max_rate must be in (0, 1], got {self.max_rate}"
+            )
+
+
+@dataclass
+class MissingConfig:
+    """Configuration for missing values.
+
+    Attributes:
+        model: Model type ("none", "mcar", "ability_dependent", "position_dependent").
+        params: Model-specific parameters as dict for OmegaConf compatibility.
+    """
+
+    model: str = "mcar"
+    params: dict[str, float] = field(default_factory=lambda: {"rate": 0.05})
+
+
+def _default_missing() -> MissingConfig:
+    return MissingConfig()
+
+
+@dataclass
 class NRMParametersConfig:
     """Configuration for NRM parameter distributions.
 
@@ -105,10 +208,10 @@ class GenerationConfig:
 
     n_candidates: int
     n_questions: int
-    n_choices: int
+    n_response_categories: int
 
     # Missingness
-    missing_rate: float = MISSING
+    missing: MissingConfig = field(default_factory=_default_missing)
 
     # Reproducibility
     random_seed: int = MISSING
@@ -127,5 +230,5 @@ class GenerationConfig:
             raise ValueError("Must have at least 2 candidates")
         if self.n_questions <= 0:
             raise ValueError("Must have at least 1 question")
-        if self.n_choices < 2 or self.n_choices > 26:
+        if self.n_response_categories < 2 or self.n_response_categories > 26:
             raise ValueError("Must have between 2 and 26 choices per question")

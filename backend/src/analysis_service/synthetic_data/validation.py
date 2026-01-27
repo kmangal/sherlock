@@ -86,7 +86,7 @@ def compute_accuracy_by_ability(
         Tuple of (bin_centers, accuracies) arrays.
     """
     abilities = data.abilities
-    responses = data.raw_responses
+    responses = data.responses
     item_params = data.item_params
 
     correct_answers = np.array(
@@ -198,13 +198,20 @@ def validate_generated_data(
     Raises:
         ValidationError: If any validation fails.
     """
-    # Validate missing rate
-    if check_missing_rate and data.config.missing_rate > 0:
-        validate_missing_rate(
-            data.answer_strings,
-            data.config.missing_rate,
-            tolerance=missing_rate_tolerance,
-        )
+    # Validate missing rate (only for MCAR model with rate param)
+    missing_config = data.config.missing
+    if (
+        check_missing_rate
+        and missing_config.model == "mcar"
+        and "rate" in missing_config.params
+    ):
+        expected_rate = missing_config.params["rate"]
+        if expected_rate > 0:
+            validate_missing_rate(
+                data.answer_strings,
+                expected_rate,
+                tolerance=missing_rate_tolerance,
+            )
 
     # Validate monotonicity (only if enough data)
     if check_monotonicity and data.config.n_candidates >= 100:
@@ -228,7 +235,7 @@ def compute_item_statistics(
             - proportion_correct: Proportion correct for each item
             - missing_rates: Missing rate for each item
     """
-    responses = data.raw_responses
+    responses = data.responses
     item_params = data.item_params
 
     correct_answers = np.array(

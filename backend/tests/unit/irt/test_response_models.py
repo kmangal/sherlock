@@ -149,7 +149,7 @@ class TestSampling:
 
         for _ in range(100):
             response = sample_response(0.0, item, rng=rng)
-            assert 0 <= response < 4
+            assert -1 <= response < 3
 
     def test_sample_response_respects_probabilities(self) -> None:
         """Sampling should respect probability distribution."""
@@ -191,7 +191,8 @@ class TestSampling:
     def test_sample_responses_batch_valid_indices(self) -> None:
         """All batch responses should be valid indices."""
         abilities = np.array([0.0, 1.0, -1.0, 2.0, -2.0])
-        n_categories = 4
+        n_response_categories = 3
+        # The last parameter belongs to missing values
         item_params = [
             NRMItemParameters(
                 item_id=i,
@@ -204,8 +205,8 @@ class TestSampling:
 
         responses = sample_responses_batch(abilities, item_params, rng=rng)
 
-        assert np.all(responses >= 0)
-        assert np.all(responses < n_categories)
+        assert np.all(responses >= -1)
+        assert np.all(responses < n_response_categories)
 
     def test_high_ability_prefers_high_discrimination(self) -> None:
         """High ability candidates should prefer high-discrimination categories."""
@@ -234,7 +235,9 @@ class TestSumToZeroConstraint:
 
     def test_create_default_satisfies_constraint(self) -> None:
         """Default parameters should satisfy sum-to-zero."""
-        params = NRMItemParameters.create_default(item_id=0, n_categories=4)
+        params = NRMItemParameters.create_default(
+            item_id=0, n_response_categories=4
+        )
 
         assert sum(params.discriminations) == pytest.approx(0.0)
         assert sum(params.intercepts) == pytest.approx(0.0)
@@ -245,7 +248,7 @@ class TestSumToZeroConstraint:
         arr = np.array([1.0, -0.5, 0.3, 0.2, -0.1, 0.4])
 
         params = NRMItemParameters.from_array(
-            item_id=0, arr=arr, n_categories=4
+            item_id=0, arr=arr, n_response_categories=3
         )
 
         assert sum(params.discriminations) == pytest.approx(0.0)
@@ -262,7 +265,7 @@ class TestSumToZeroConstraint:
 
         arr = original.to_array()
         reconstructed = NRMItemParameters.from_array(
-            item_id=0, arr=arr, n_categories=3
+            item_id=0, arr=arr, n_response_categories=2
         )
 
         np.testing.assert_allclose(

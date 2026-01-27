@@ -9,7 +9,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 from analysis_service.core.constants import MISSING_VALUE
-from analysis_service.irt.estimation.data_models import ResponseMatrix
+from analysis_service.core.data_models import ResponseMatrix
 
 
 def compute_response_proportions(

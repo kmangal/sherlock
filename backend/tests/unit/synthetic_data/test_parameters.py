@@ -66,27 +66,38 @@ class TestJointParameterSampler:
     def baseline_config(self) -> GenerationConfig:
         return get_preset("baseline")
 
+    @pytest.fixture
+    def theta(self, baseline_config: GenerationConfig) -> np.ndarray:
+        """Sample abilities for testing."""
+        rng = get_rng(123)
+        return rng.standard_normal(baseline_config.n_candidates).astype(
+            np.float64
+        )
+
     def test_sample_returns_correct_shapes(
-        self, baseline_config: GenerationConfig
+        self, baseline_config: GenerationConfig, theta: np.ndarray
     ) -> None:
         sampler = JointParameterSampler(baseline_config)
         rng = get_rng(42)
         n_questions = 50
-        n_choices = baseline_config.n_choices
-        correct_answers = rng.integers(0, n_choices, size=n_questions)
+        n_categories = baseline_config.n_response_categories
+        correct_answers = rng.integers(0, n_categories, size=n_questions)
 
         result = sampler.sample(
             n_questions=n_questions,
-            n_choices=n_choices,
+            n_response_categories=n_categories,
             correct_answer_ix=correct_answers,
+            theta=theta,
             rng=rng,
         )
 
-        assert result.discrimination.shape == (n_questions, n_choices)
-        assert result.intercept.shape == (n_questions, n_choices)
+        # +1 for missing category
+        assert result.discrimination.shape == (n_questions, n_categories + 1)
+        assert result.intercept.shape == (n_questions, n_categories + 1)
+        assert result.includes_missing_values
 
     def test_sample_correct_answer_gets_discrimination_boost(
-        self, baseline_config: GenerationConfig
+        self, baseline_config: GenerationConfig, theta: np.ndarray
     ) -> None:
         """Correct answer discrimination should be boosted by the gap parameter.
 
@@ -97,23 +108,24 @@ class TestJointParameterSampler:
         sampler = JointParameterSampler(baseline_config)
         rng = get_rng(42)
         n_questions = 500
-        n_choices = baseline_config.n_choices
-        correct_answers = rng.integers(0, n_choices, size=n_questions)
+        n_categories = baseline_config.n_response_categories
+        correct_answers = rng.integers(0, n_categories, size=n_questions)
 
         result = sampler.sample(
             n_questions=n_questions,
-            n_choices=n_choices,
+            n_response_categories=n_categories,
             correct_answer_ix=correct_answers,
+            theta=theta,
             rng=rng,
         )
 
-        # Collect correct and distractor discriminations
+        # Collect correct and distractor discriminations (excluding missing category)
         correct_discs = []
         distractor_discs = []
         for i in range(n_questions):
             correct_idx = correct_answers[i]
             correct_discs.append(result.discrimination[i, correct_idx])
-            for k in range(n_choices):
+            for k in range(n_categories):
                 if k != correct_idx:
                     distractor_discs.append(result.discrimination[i, k])
 
@@ -126,27 +138,29 @@ class TestJointParameterSampler:
         )
 
     def test_sample_reproducible(
-        self, baseline_config: GenerationConfig
+        self, baseline_config: GenerationConfig, theta: np.ndarray
     ) -> None:
         sampler = JointParameterSampler(baseline_config)
         n_questions = 50
-        n_choices = baseline_config.n_choices
+        n_categories = baseline_config.n_response_categories
 
         rng1 = get_rng(42)
-        correct1 = rng1.integers(0, n_choices, size=n_questions)
+        correct1 = rng1.integers(0, n_categories, size=n_questions)
         result1 = sampler.sample(
             n_questions=n_questions,
-            n_choices=n_choices,
+            n_response_categories=n_categories,
             correct_answer_ix=correct1,
+            theta=theta,
             rng=rng1,
         )
 
         rng2 = get_rng(42)
-        correct2 = rng2.integers(0, n_choices, size=n_questions)
+        correct2 = rng2.integers(0, n_categories, size=n_questions)
         result2 = sampler.sample(
             n_questions=n_questions,
-            n_choices=n_choices,
+            n_response_categories=n_categories,
             correct_answer_ix=correct2,
+            theta=theta,
             rng=rng2,
         )
 
@@ -156,27 +170,29 @@ class TestJointParameterSampler:
         np.testing.assert_array_equal(result1.intercept, result2.intercept)
 
     def test_different_seeds_produce_different_params(
-        self, baseline_config: GenerationConfig
+        self, baseline_config: GenerationConfig, theta: np.ndarray
     ) -> None:
         sampler = JointParameterSampler(baseline_config)
         n_questions = 50
-        n_choices = baseline_config.n_choices
+        n_categories = baseline_config.n_response_categories
 
         rng1 = get_rng(42)
-        correct1 = rng1.integers(0, n_choices, size=n_questions)
+        correct1 = rng1.integers(0, n_categories, size=n_questions)
         result1 = sampler.sample(
             n_questions=n_questions,
-            n_choices=n_choices,
+            n_response_categories=n_categories,
             correct_answer_ix=correct1,
+            theta=theta,
             rng=rng1,
         )
 
         rng2 = get_rng(99)
-        correct2 = rng2.integers(0, n_choices, size=n_questions)
+        correct2 = rng2.integers(0, n_categories, size=n_questions)
         result2 = sampler.sample(
             n_questions=n_questions,
-            n_choices=n_choices,
+            n_response_categories=n_categories,
             correct_answer_ix=correct2,
+            theta=theta,
             rng=rng2,
         )
 

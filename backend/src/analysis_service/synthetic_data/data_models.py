@@ -5,6 +5,8 @@ This module defines typed data structures for the synthetic data module.
 It avoids embedding generation logic - only contracts are defined here.
 """
 
+from dataclasses import dataclass
+
 import numpy as np
 from numpy.typing import NDArray
 from pydantic import BaseModel, ConfigDict, Field
@@ -45,7 +47,7 @@ class GeneratedData(BaseModel):
     # Intermediate data (for validation and debugging)
     abilities: NDArray[np.float64]
     item_params: list[NRMItemParameters]
-    raw_responses: NDArray[
+    responses: NDArray[
         np.int8
     ]  # Shape: (n_candidates, n_items), MISSING_VALUE = missing
 
@@ -55,11 +57,18 @@ class GeneratedData(BaseModel):
     @property
     def actual_missing_rate(self) -> float:
         """Calculate the actual missing rate from raw responses."""
-        n_total = self.raw_responses.size
-        n_missing = int(np.sum(self.raw_responses == MISSING_VALUE))
+        n_total = self.responses.size
+        n_missing = int(np.sum(self.responses == MISSING_VALUE))
         return n_missing / n_total if n_total > 0 else 0.0
 
 
 class ItemStatistics(BaseModel):
     proportion_correct: float = Field(..., ge=0.0, le=1.0)
     missing_rate: float = Field(..., ge=0.0, le=1.0)
+
+
+@dataclass
+class SampledParameters:
+    discrimination: NDArray[np.float64]
+    intercept: NDArray[np.float64]
+    includes_missing_values: bool

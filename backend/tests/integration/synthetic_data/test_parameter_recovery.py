@@ -25,12 +25,12 @@ class TestParameterRecovery:
         config.n_candidates = LARGE_SAMPLE_SIZE
         return config
 
-    @pytest.mark.parametrize("target_rate", [0.05, 0.10, 0.15, 0.20])
+    @pytest.mark.parametrize("target_rate", [0.05, 0.15, 0.5])
     def test_missing_rate_recovery(
         self, baseline_config: GenerationConfig, target_rate: float
     ) -> None:
         """Test that missing rate is recovered within 1%."""
-        baseline_config.missing_rate = target_rate
+        baseline_config.missing.params["rate"] = target_rate
 
         data = generate_exam_responses(baseline_config)
         actual_rate = data.actual_missing_rate

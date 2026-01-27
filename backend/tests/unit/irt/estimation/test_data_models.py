@@ -6,7 +6,10 @@ import numpy as np
 import pytest
 
 from analysis_service.core.constants import MISSING_VALUE
-from analysis_service.irt.estimation.data_models import ResponseMatrix
+from analysis_service.core.data_models import (
+    ResponseMatrix,
+    response_code_to_category_index,
+)
 
 
 class TestResponseMatrix:
@@ -72,3 +75,66 @@ class TestResponseMatrix:
         responses = np.array([[0, 3], [1, 0]], dtype=np.int8)
         with pytest.raises(ValueError, match="must be < n_categories"):
             ResponseMatrix(responses=responses, n_categories=3)
+
+    def test_n_total_categories(self) -> None:
+        """n_total_categories should return K+1."""
+        responses = np.array([[0, 1], [1, 2]], dtype=np.int8)
+        rm = ResponseMatrix(responses=responses, n_categories=3)
+
+        # K=3 response categories + 1 missing = 4 total
+        assert rm.n_total_categories == 4
+
+    def test_item_category_counts(self) -> None:
+        """item_category_counts should count K+1 categories including missing."""
+        responses = np.array(
+            [[0, 1], [0, 2], [1, MISSING_VALUE], [1, 0]], dtype=np.int8
+        )
+        rm = ResponseMatrix(responses=responses, n_categories=3)
+
+        # Item 0: 2 zeros, 2 ones, 0 twos, 0 missing
+        counts_0 = rm.item_category_counts(0)
+        np.testing.assert_array_equal(counts_0, [2, 2, 0, 0])
+
+        # Item 1: 1 zero, 1 one, 1 two, 1 missing
+        counts_1 = rm.item_category_counts(1)
+        np.testing.assert_array_equal(counts_1, [1, 1, 1, 1])
+
+
+class TestResponseCodeToCategoryIndex:
+    def test_valid_responses_unchanged(self) -> None:
+        """Valid responses 0..K-1 should map to themselves."""
+        responses = np.array([0, 1, 2, 0, 1], dtype=np.int8)
+        result = response_code_to_category_index(
+            responses, n_response_categories=3
+        )
+        np.testing.assert_array_equal(result, [0, 1, 2, 0, 1])
+
+    def test_missing_maps_to_k(self) -> None:
+        """Missing value (-1) should map to category K."""
+        responses = np.array(
+            [0, MISSING_VALUE, 2, MISSING_VALUE], dtype=np.int8
+        )
+        result = response_code_to_category_index(
+            responses, n_response_categories=3
+        )
+        # K=3, so missing maps to 3
+        np.testing.assert_array_equal(result, [0, 3, 2, 3])
+
+    def test_2d_array(self) -> None:
+        """Should work with 2D arrays."""
+        responses = np.array(
+            [[0, MISSING_VALUE], [MISSING_VALUE, 1]], dtype=np.int8
+        )
+        result = response_code_to_category_index(
+            responses, n_response_categories=2
+        )
+        expected = np.array([[0, 2], [2, 1]], dtype=np.int64)
+        np.testing.assert_array_equal(result, expected)
+
+    def test_output_dtype(self) -> None:
+        """Output should be int64."""
+        responses = np.array([0, 1], dtype=np.int8)
+        result = response_code_to_category_index(
+            responses, n_response_categories=2
+        )
+        assert result.dtype == np.int64

@@ -43,10 +43,12 @@ def test_generate_exam_responses_with_missingness(
     baseline_config: GenerationConfig,
 ) -> None:
     data = generate_exam_responses(baseline_config)
-    missing_rate = baseline_config.missing_rate
+    # Get expected rate from MCAR config
+    expected_rate = baseline_config.missing.params.get("rate", 0.0)
 
     actual_rate = compute_missing_rate(data.answer_strings)
-    assert abs(actual_rate - missing_rate) < 0.02
+    # Calibration solves E[P(missing|theta)] = target, so should be accurate
+    assert abs(actual_rate - expected_rate) < 0.02
 
 
 def test_generate_exam_responses_validation_passes(

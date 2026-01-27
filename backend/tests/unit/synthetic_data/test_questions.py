@@ -1,3 +1,4 @@
+import numpy as np
 import pytest
 
 from analysis_service.core.utils import get_rng
@@ -11,38 +12,55 @@ def baseline_config() -> GenerationConfig:
     return get_preset("baseline")
 
 
+@pytest.fixture
+def abilities(baseline_config: GenerationConfig) -> np.ndarray:
+    """Sample abilities for testing."""
+    rng = get_rng(123)
+    return rng.standard_normal(baseline_config.n_candidates)
+
+
 class TestSampleParams:
     def test_returns_correct_count(
-        self, baseline_config: GenerationConfig
+        self, baseline_config: GenerationConfig, abilities: np.ndarray
     ) -> None:
-        params = sample_item_parameters(baseline_config, rng=get_rng(42))
+        params = sample_item_parameters(
+            baseline_config, abilities, rng=get_rng(42)
+        )
 
         assert len(params) == baseline_config.n_questions
 
     def test_creates_valid_params(
-        self, baseline_config: GenerationConfig
+        self, baseline_config: GenerationConfig, abilities: np.ndarray
     ) -> None:
-        params = sample_item_parameters(baseline_config, rng=get_rng(42))
+        params = sample_item_parameters(
+            baseline_config, abilities, rng=get_rng(42)
+        )
 
-        n_choices = baseline_config.n_choices
+        n_response_categories = baseline_config.n_response_categories
 
         for p in params:
             assert p.correct_answer is not None
-            assert 0 <= p.correct_answer < n_choices
+            assert 0 <= p.correct_answer < n_response_categories
 
     def test_item_ids_are_sequential(
-        self, baseline_config: GenerationConfig
+        self, baseline_config: GenerationConfig, abilities: np.ndarray
     ) -> None:
-        params = sample_item_parameters(baseline_config, rng=get_rng(42))
+        params = sample_item_parameters(
+            baseline_config, abilities, rng=get_rng(42)
+        )
 
         for i, p in enumerate(params):
             assert p.item_id == i
 
     def test_reproducible_with_same_seed(
-        self, baseline_config: GenerationConfig
+        self, baseline_config: GenerationConfig, abilities: np.ndarray
     ) -> None:
-        p1 = sample_item_parameters(baseline_config, rng=get_rng(42))
-        p2 = sample_item_parameters(baseline_config, rng=get_rng(42))
+        p1 = sample_item_parameters(
+            baseline_config, abilities, rng=get_rng(42)
+        )
+        p2 = sample_item_parameters(
+            baseline_config, abilities, rng=get_rng(42)
+        )
 
         assert len(p1) == len(p2)
         for i in range(len(p1)):
@@ -51,10 +69,14 @@ class TestSampleParams:
             assert p1[i].correct_answer == p2[i].correct_answer
 
     def test_different_seeds_produce_different_params(
-        self, baseline_config: GenerationConfig
+        self, baseline_config: GenerationConfig, abilities: np.ndarray
     ) -> None:
-        p1 = sample_item_parameters(baseline_config, rng=get_rng(42))
-        p2 = sample_item_parameters(baseline_config, rng=get_rng(99))
+        p1 = sample_item_parameters(
+            baseline_config, abilities, rng=get_rng(42)
+        )
+        p2 = sample_item_parameters(
+            baseline_config, abilities, rng=get_rng(99)
+        )
 
         # At least some items should differ
         discrimination_differences = sum(

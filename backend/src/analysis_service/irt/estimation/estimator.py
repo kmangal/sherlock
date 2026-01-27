@@ -13,11 +13,12 @@ import numpy as np
 from numpy.typing import NDArray
 from scipy.optimize import minimize
 
+from analysis_service.core.data_models import (
+    ResponseMatrix,
+    response_code_to_category_index,
+)
 from analysis_service.core.utils import get_rng
 from analysis_service.irt.estimation.config import EstimationConfig
-from analysis_service.irt.estimation.data_models import (
-    ResponseMatrix,
-)
 from analysis_service.irt.estimation.enums import ConvergenceStatus
 from analysis_service.irt.estimation.gradients import (
     nrm_neg_ell_gradient_with_penalty,
@@ -199,7 +200,7 @@ class NRMEstimator:
                 data.responses[:, item_idx],
                 item_params,
                 self._quadrature.points,
-                data.missing_mask[:, item_idx],
+                data.n_categories,
             )
             log_lik += item_log_lik
 
@@ -337,10 +338,9 @@ class NRMEstimator:
             new_item_params = self._optimize_item(
                 item_idx=item_idx,
                 responses=data.responses[:, item_idx],
-                missing_mask=data.missing_mask[:, item_idx],
                 posteriors=posteriors,
                 current=current,
-                n_categories=data.n_categories,
+                n_response_categories=data.n_categories,
             )
             new_params.append(new_item_params)
 
@@ -359,10 +359,9 @@ class NRMEstimator:
             new_item_params = self._optimize_item(
                 item_idx=item_idx,
                 responses=data.responses[:, item_idx],
-                missing_mask=data.missing_mask[:, item_idx],
                 posteriors=posteriors,
                 current=current,
-                n_categories=data.n_categories,
+                n_response_categories=data.n_categories,
                 fix_discriminations=True,
             )
             new_params.append(new_item_params)
@@ -380,27 +379,28 @@ class NRMEstimator:
             data: Response matrix.
 
         Returns:
-            List of initial NRMItemParameters.
+            List of initial NRMItemParameters with K+1 categories.
         """
         params = []
+        n_total = data.n_total_categories  # K+1
 
         for item_idx in range(data.n_items):
-            # Get response counts for this item
-            counts = data.item_response_counts(item_idx)
+            # Get response counts for this item (K+1 counts including missing)
+            counts = data.item_category_counts(item_idx)
             total = counts.sum()
 
             correct_answer = self._correct_answers[item_idx]
 
             if total == 0:
-                # No valid responses - use uniform defaults
+                # No responses - use uniform defaults
                 item_params = NRMItemParameters.create_default(
                     item_id=item_idx,
-                    n_categories=data.n_categories,
+                    n_response_categories=data.n_categories,
                     correct_answer=correct_answer,
                 )
             else:
                 # Compute proportions with additive smoothing
-                props = (counts + 0.5) / (total + 0.5 * data.n_categories)
+                props = (counts + 0.5) / (total + 0.5 * n_total)
 
                 # Initialize intercepts from log-proportions centered to mean (sum-to-zero)
                 log_props = np.log(props + 1e-10)
@@ -408,9 +408,7 @@ class NRMEstimator:
                 intercepts = tuple(float(b) for b in log_props_centered)
 
                 # Initialize discriminations, with sum to zero constraint
-                d_sampled = self.rng.standard_normal(data.n_categories).clip(
-                    -1, 1
-                )
+                d_sampled = self.rng.standard_normal(n_total).clip(-1, 1)
                 d_centered = d_sampled - np.mean(d_sampled)
                 discriminations = tuple(d_centered)
 
@@ -430,42 +428,40 @@ class NRMEstimator:
         responses: NDArray[np.int8],
         params: NRMItemParameters,
         theta: NDArray[np.float64],
-        missing_mask: NDArray[np.bool_],
+        n_response_categories: int,
     ) -> NDArray[np.float64]:
         """
         Compute log-likelihood contribution of one item.
 
+        All responses (including missing) contribute to likelihood.
+        Missing responses are mapped to category K.
+
         Args:
             responses: Responses to this item, shape (n_candidates,).
-            params: NRM item parameters.
+            params: NRM item parameters (K+1 categories).
             theta: Quadrature points, shape (n_quadrature,).
-            n_categories: Number of response categories.
-            missing_mask: Boolean mask where True = missing.
+            n_response_categories: Number of response categories (K, excludes missing).
 
         Returns:
             Log-likelihood matrix, shape (n_candidates, n_quadrature).
         """
-        n_candidates = len(responses)
-        n_quad = len(theta)
-
         # Compute probabilities at each quadrature point using item's method
-        # Shape: (n_quadrature, n_categories)
+        # Shape: (n_quadrature, K+1)
         probs = params.compute_probabilities(theta)
 
         # Log probabilities
-        log_probs = np.log(probs + 1e-300)  # (n_quadrature, n_categories)
+        log_probs = np.log(probs + 1e-300)  # (n_quadrature, K+1)
 
-        # Initialize log-likelihood contribution (0 for missing)
-        log_lik = np.zeros((n_candidates, n_quad), dtype=np.float64)
+        # Map response codes to category indices (-1 -> K, 0..K-1 -> 0..K-1)
+        category_indices = response_code_to_category_index(
+            responses, n_response_categories
+        )
 
-        # For valid responses, look up log probability of observed response
-        valid_mask = ~missing_mask
-        valid_responses = responses[valid_mask].astype(np.int64)
-
-        # log_probs[q, r] for each valid candidate's response r
-        # We need to index: log_probs[:, valid_responses] gives (n_quad, n_valid)
-        # Transpose to get (n_valid, n_quad)
-        log_lik[valid_mask, :] = log_probs[:, valid_responses].T
+        # Look up log probability for each candidate's response
+        # log_probs shape: (n_quad, K+1)
+        # category_indices shape: (n_candidates,)
+        # Result: log_probs[:, category_indices] gives (n_quad, n_candidates)
+        log_lik: NDArray[np.float64] = log_probs[:, category_indices].T
 
         return log_lik
 
@@ -473,51 +469,46 @@ class NRMEstimator:
         self,
         item_idx: int,
         responses: NDArray[np.int8],
-        missing_mask: NDArray[np.bool_],
         posteriors: NDArray[np.float32],
         current: NRMItemParameters,
-        n_categories: int,
+        n_response_categories: int,
         fix_discriminations: bool = False,
     ) -> NRMItemParameters:
         """
         Optimize parameters for one item using L-BFGS-B.
 
+        All responses (including missing) contribute to likelihood.
         When correct_answer is known (and not in warmup), applies a soft penalty
         to encourage a_correct > a_distractor.
 
         Args:
             item_idx: Index of the item.
             responses: Responses to this item, shape (n_candidates,).
-            missing_mask: Boolean mask where True = missing.
             posteriors: Posterior weights, shape (n_candidates, n_quadrature).
             current: Current parameter estimates.
-            n_categories: Number of response categories.
+            n_response_categories: Number of response categories (K, excludes missing).
             fix_discriminations: If True, only optimize intercepts (for warmup).
 
         Returns:
             Optimized NRMItemParameters.
         """
-        # Filter to valid responses only
-        valid_mask = ~missing_mask
-        valid_responses = responses[valid_mask]
-        valid_posteriors = posteriors[valid_mask, :]
+        n_candidates = len(responses)
+        n_total_categories = n_response_categories + 1
 
-        if len(valid_responses) == 0:
-            # No valid responses - return current parameters
-            return current
-
-        # Create response indicator matrix
-        # Shape: (n_valid, n_categories)
-        n_valid = len(valid_responses)
-        response_indicators = np.zeros(
-            (n_valid, n_categories), dtype=np.float64
+        # Map response codes to category indices (-1 -> K, 0..K-1 -> 0..K-1)
+        category_indices = response_code_to_category_index(
+            responses, n_response_categories
         )
-        response_indicators[
-            np.arange(n_valid), valid_responses.astype(np.int64)
-        ] = 1.0
+
+        # Create response indicator matrix for all K+1 categories
+        # Shape: (n_candidates, K+1)
+        response_indicators = np.zeros(
+            (n_candidates, n_total_categories), dtype=np.float64
+        )
+        response_indicators[np.arange(n_candidates), category_indices] = 1.0
 
         theta = self._quadrature.points
-        n_free = n_categories - 1
+        n_free = n_response_categories  # K free params per type (a and b)
 
         if fix_discriminations:
             # Warmup phase: only optimize intercepts, keep discriminations fixed
@@ -525,9 +516,9 @@ class NRMEstimator:
                 item_idx,
                 current,
                 theta,
-                valid_posteriors,
+                posteriors,
                 response_indicators,
-                n_categories,
+                n_response_categories,
             )
 
         correct_answer = self._correct_answers[item_idx]
@@ -548,9 +539,9 @@ class NRMEstimator:
                 x0=x0,
                 args=(
                     theta,
-                    valid_posteriors,
+                    posteriors,
                     response_indicators,
-                    n_categories,
+                    n_total_categories,
                     correct_answer,
                     lambda_penalty,
                     margin,
@@ -570,9 +561,9 @@ class NRMEstimator:
                 x0=x0,
                 args=(
                     theta,
-                    valid_posteriors,
+                    posteriors,
                     response_indicators,
-                    n_categories,
+                    n_total_categories,
                 ),
                 method="L-BFGS-B",
                 jac=nrm_negative_expected_log_likelihood_gradient,
@@ -585,7 +576,10 @@ class NRMEstimator:
 
         # Reconstruct parameters from optimized array
         return NRMItemParameters.from_array(
-            item_idx, result.x, n_categories, correct_answer=correct_answer
+            item_idx,
+            result.x,
+            n_response_categories,
+            correct_answer=correct_answer,
         )
 
     def _optimize_intercepts_only(
@@ -595,7 +589,7 @@ class NRMEstimator:
         theta: NDArray[np.float64],
         posteriors: NDArray[np.float32],
         response_indicators: NDArray[np.float64],
-        n_categories: int,
+        n_response_categories: int,
     ) -> NRMItemParameters:
         """
         Optimize only intercepts, keeping discriminations fixed.
@@ -603,9 +597,12 @@ class NRMEstimator:
         Used during warmup phase to reduce local maxima issues.
         Uses sum-to-zero constraint for intercepts.
         """
-        n_free = n_categories - 1
-        # Fixed discriminations (first K-1 for sum-to-zero)
-        fixed_a = np.array(current.discriminations[:-1], dtype=np.float64)
+        n_free = n_response_categories  # K free params
+        n_total_categories = n_response_categories + 1
+        # Fixed discriminations (first K for sum-to-zero, missing derived)
+        fixed_a = np.array(
+            current.discriminations[:n_response_categories], dtype=np.float64
+        )
 
         def objective(b_free: NDArray[np.float64]) -> float:
             # Build full parameter array with fixed discriminations
@@ -616,21 +613,27 @@ class NRMEstimator:
                     theta,
                     posteriors,
                     response_indicators,
-                    n_categories,
+                    n_total_categories,
                 )
             )
 
         def gradient(b_free: NDArray[np.float64]) -> NDArray[np.float64]:
             params = np.concatenate([fixed_a, b_free])
             full_grad = nrm_negative_expected_log_likelihood_gradient(
-                params, theta, posteriors, response_indicators, n_categories
+                params,
+                theta,
+                posteriors,
+                response_indicators,
+                n_total_categories,
             )
             # Return only the intercept gradients
             intercept_grad: NDArray[np.float64] = full_grad[n_free:]
             return intercept_grad
 
-        # Initial intercepts (first K-1 for sum-to-zero)
-        b0 = np.array(current.intercepts[:-1], dtype=np.float64)
+        # Initial intercepts (first K for sum-to-zero, missing derived)
+        b0 = np.array(
+            current.intercepts[:n_response_categories], dtype=np.float64
+        )
 
         # Optimize intercepts only
         bounds_b = [self.config.bounds.intercept] * n_free
@@ -649,8 +652,10 @@ class NRMEstimator:
 
         # Reconstruct with fixed discriminations and optimized intercepts (sum-to-zero)
         opt_b_free = result.x
-        b_last = -np.sum(opt_b_free)
-        new_intercepts = tuple(float(b) for b in opt_b_free) + (float(b_last),)
+        b_missing = -np.sum(opt_b_free)
+        new_intercepts = tuple(float(b) for b in opt_b_free) + (
+            float(b_missing),
+        )
 
         return NRMItemParameters(
             item_id=item_idx,

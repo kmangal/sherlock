@@ -8,7 +8,6 @@ This module provides:
 - Config loading from YAML files using OmegaConf
 """
 
-from dataclasses import dataclass
 from pathlib import Path
 from typing import TypedDict
 
@@ -22,6 +21,11 @@ from analysis_service.synthetic_data.config import (
     CorrelationsConfig,
     DistributionConfig,
     GenerationConfig,
+)
+from analysis_service.synthetic_data.data_models import SampledParameters
+from analysis_service.synthetic_data.missingness import (
+    MissingnessModel,
+    get_missingness_model,
 )
 from analysis_service.synthetic_data.sampling import (
     Distribution,
@@ -102,12 +106,6 @@ class SamplingDistributions(TypedDict):
     correct_discrimination_gap: Distribution
 
 
-@dataclass
-class SampledParameters:
-    discrimination: NDArray[np.float64]
-    intercept: NDArray[np.float64]
-
-
 class JointParameterSampler:
     """Sample IRT parameters using Gaussian copula for correlated parameters.
 
@@ -134,11 +132,17 @@ class JointParameterSampler:
             ),
         }
 
+        # Create missingness model
+        self._missingness_model: MissingnessModel = get_missingness_model(
+            config.missing.model, config.missing.params
+        )
+
     def sample(
         self,
         n_questions: int,
-        n_choices: int,
+        n_response_categories: int,
         correct_answer_ix: NDArray[np.int64],
+        theta: NDArray[np.float64],
         rng: Generator,
     ) -> SampledParameters:
         """Sample item parameters with correlations.
@@ -148,10 +152,21 @@ class JointParameterSampler:
         2. Correlate: Y = Z @ L.T where L is Cholesky of correlation matrix
         3. Transform to uniform: U = norm.cdf(Y)
         4. Apply inverse marginal CDF (ppf) for each parameter
+        5. Apply missingness model to add missing category
+
+        Args:
+            n_questions: Number of questions.
+            n_response_categories: Number of response categories (excluding missing).
+            correct_answer_ix: Index of correct answer for each question.
+            theta: Candidate abilities, shape (n_candidates,).
+            rng: Random number generator.
+
+        Returns:
+            SampledParameters with missing category included.
         """
 
         # Step 1: Independent standard normals
-        Z = rng.standard_normal((n_questions * n_choices, 3))
+        Z = rng.standard_normal((n_questions * n_response_categories, 3))
 
         # Step 2: Apply correlation via Cholesky
         Y = Z @ self._cholesky.T
@@ -164,21 +179,22 @@ class JointParameterSampler:
             "discrimination"
         ].inverse_cdf(U[:, 0])
         sampled_discriminations = sampled_discriminations.reshape(
-            (n_questions, n_choices)
+            (n_questions, n_response_categories)
         )
 
-        sampled_intercepts = self._distributions["discrimination"].inverse_cdf(
+        sampled_intercepts = self._distributions["intercept"].inverse_cdf(
             U[:, 1]
         )
         sampled_intercepts = sampled_intercepts.reshape(
-            (n_questions, n_choices)
+            (n_questions, n_response_categories)
         )
         sampled_gap = self._distributions[
             "correct_discrimination_gap"
         ].inverse_cdf(U[:, 2])
-        sampled_gap = sampled_gap.reshape((n_questions, n_choices))
+        sampled_gap = sampled_gap.reshape((n_questions, n_response_categories))
 
-        # Zero out all values that do not pertain to the correct answer
+        # For each correct item, add the sampled_gap value to the sampled_discrimination
+        # Leave all the remaining sampled_discrimination values as is
         rows = np.arange(sampled_gap.shape[0])
         vals = sampled_gap[rows, correct_answer_ix]
         sampled_gap[:] = 0
@@ -188,12 +204,18 @@ class JointParameterSampler:
 
         sampled_discriminations += sampled_gap
 
-        result = SampledParameters(
+        # Step 5: Apply missingness model to add missing category
+        raw_parameters = SampledParameters(
             discrimination=sampled_discriminations,
             intercept=sampled_intercepts,
+            includes_missing_values=False,
         )
 
-        return result
+        parameters = self._missingness_model.generate_missing_params(
+            raw_parameters, theta, rng
+        )
+
+        return parameters
 
 
 # =============================================================================

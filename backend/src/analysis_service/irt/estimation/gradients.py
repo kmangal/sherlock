@@ -4,8 +4,9 @@ Analytical gradients for NRM estimation.
 The NRM probability is:
     P(Y=k | θ) = exp(a_k * θ + b_k) / Σ_h exp(a_h * θ + b_h)
 
-Identification: sum-to-zero (Σa_k = 0, Σb_k = 0).
-Free parameters: first K-1 categories; last derived as a_{K-1} = -Σa_k.
+With K response categories (0..K-1) and 1 missing category (K), total K+1 categories.
+Identification: sum-to-zero (Σa_k = 0, Σb_k = 0) across all K+1 categories.
+Free parameters: first K categories (0..K-1); missing (K) derived as a_K = -Σa_k.
 
 For the expected complete-data log-likelihood (weighted by posteriors w_iq):
     Q = Σ_i Σ_q w_iq * log P(Y_i | θ_q)
@@ -14,8 +15,8 @@ Gradients (for full parameters):
     ∂Q / ∂a_k = Σ_i Σ_q w_iq * θ_q * (I[Y_i=k] - P(Y=k | θ_q))
     ∂Q / ∂b_k = Σ_i Σ_q w_iq * (I[Y_i=k] - P(Y=k | θ_q))
 
-Chain rule for sum-to-zero (free params k=0..K-2):
-    ∂Q / ∂a_k^free = ∂Q / ∂a_k - ∂Q / ∂a_{K-1}
+Chain rule for sum-to-zero (free params k=0..K-1):
+    ∂Q / ∂a_k^free = ∂Q / ∂a_k - ∂Q / ∂a_K
 """
 
 import numpy as np
@@ -67,7 +68,7 @@ def nrm_negative_expected_log_likelihood(
     theta: NDArray[np.float64],
     posteriors: NDArray[np.float32],
     response_indicators: NDArray[np.float64],
-    n_categories: int,
+    n_total_categories: int,
 ) -> float:
     """
     Compute negative expected complete-data log-likelihood for one item.
@@ -75,25 +76,25 @@ def nrm_negative_expected_log_likelihood(
     This is the objective function for M-step optimization.
 
     Args:
-        params: Free parameters [a_0, ..., a_{K-2}, b_0, ..., b_{K-2}].
-            Last category derived from sum-to-zero constraint.
+        params: Free parameters [a_0, ..., a_{K-1}, b_0, ..., b_{K-1}].
+            Missing category (K) derived from sum-to-zero constraint.
         theta: Quadrature points, shape (n_quadrature,).
         posteriors: Posterior weights, shape (n_candidates, n_quadrature).
-            Only includes candidates with valid responses.
-        response_indicators: Response indicators, shape (n_candidates, n_categories).
+        response_indicators: Response indicators, shape (n_candidates, n_total_categories).
             response_indicators[i, k] = 1 if candidate i chose category k.
-        n_categories: Number of response categories.
+            Category K is the missing category.
+        n_total_categories: Total number of categories (K+1, includes missing).
 
     Returns:
         Negative expected log-likelihood (to minimize).
     """
     # Reconstruct full parameters with sum-to-zero constraint
-    n_free = n_categories - 1
+    n_free = n_total_categories - 1
     free_a = params[:n_free]
     free_b = params[n_free:]
 
-    discriminations = np.zeros(n_categories, dtype=np.float64)
-    intercepts = np.zeros(n_categories, dtype=np.float64)
+    discriminations = np.zeros(n_total_categories, dtype=np.float64)
+    intercepts = np.zeros(n_total_categories, dtype=np.float64)
     discriminations[:-1] = free_a
     discriminations[-1] = -np.sum(free_a)
     intercepts[:-1] = free_b
@@ -132,7 +133,7 @@ def nrm_negative_expected_log_likelihood_gradient(
     theta: NDArray[np.float64],
     posteriors: NDArray[np.float32],
     response_indicators: NDArray[np.float64],
-    n_categories: int,
+    n_total_categories: int,
 ) -> NDArray[np.float64]:
     """
     Compute gradient of negative expected log-likelihood for one item.
@@ -141,26 +142,26 @@ def nrm_negative_expected_log_likelihood_gradient(
         ∂Q / ∂a_k = Σ_i Σ_q w_iq * θ_q * (I[Y_i=k] - P(k | θ_q))
         ∂Q / ∂b_k = Σ_i Σ_q w_iq * (I[Y_i=k] - P(k | θ_q))
 
-    Chain rule for sum-to-zero (free params k=0..K-2):
-        ∂Q / ∂a_k^free = ∂Q / ∂a_k - ∂Q / ∂a_{K-1}
+    Chain rule for sum-to-zero (free params k=0..K-1):
+        ∂Q / ∂a_k^free = ∂Q / ∂a_k - ∂Q / ∂a_K
 
     Args:
-        params: Free parameters [a_0, ..., a_{K-2}, b_0, ..., b_{K-2}].
+        params: Free parameters [a_0, ..., a_{K-1}, b_0, ..., b_{K-1}].
         theta: Quadrature points, shape (n_quadrature,).
         posteriors: Posterior weights, shape (n_candidates, n_quadrature).
-        response_indicators: Response indicators, shape (n_candidates, n_categories).
-        n_categories: Number of response categories.
+        response_indicators: Response indicators, shape (n_candidates, n_total_categories).
+        n_total_categories: Total number of categories (K+1, includes missing).
 
     Returns:
-        Gradient of negative expected log-likelihood, shape (2 * (K-1),).
+        Gradient of negative expected log-likelihood, shape (2 * K,).
     """
-    n_free = n_categories - 1
+    n_free = n_total_categories - 1
     free_a = params[:n_free]
     free_b = params[n_free:]
 
     # Reconstruct full parameters with sum-to-zero constraint
-    discriminations = np.zeros(n_categories, dtype=np.float64)
-    intercepts = np.zeros(n_categories, dtype=np.float64)
+    discriminations = np.zeros(n_total_categories, dtype=np.float64)
+    intercepts = np.zeros(n_total_categories, dtype=np.float64)
     discriminations[:-1] = free_a
     discriminations[-1] = -np.sum(free_a)
     intercepts[:-1] = free_b
@@ -305,7 +306,7 @@ def nrm_neg_ell_with_penalty(
     theta: NDArray[np.float64],
     posteriors: NDArray[np.float32],
     response_indicators: NDArray[np.float64],
-    n_categories: int,
+    n_total_categories: int,
     correct_answer: int,
     lambda_penalty: float,
     margin: float,
@@ -313,13 +314,16 @@ def nrm_neg_ell_with_penalty(
     """
     Compute negative expected log-likelihood plus correct answer penalty.
 
+    The penalty only applies to response categories (0..K-1), not the missing
+    category (K).
+
     Args:
-        params: Free parameters [a_0, ..., a_{K-2}, b_0, ..., b_{K-2}].
+        params: Free parameters [a_0, ..., a_{K-1}, b_0, ..., b_{K-1}].
         theta: Quadrature points.
         posteriors: Posterior weights.
         response_indicators: Response indicators.
-        n_categories: Number of response categories.
-        correct_answer: Index of correct answer.
+        n_total_categories: Total number of categories (K+1, includes missing).
+        correct_answer: Index of correct answer (must be < K).
         lambda_penalty: Penalty weight.
         margin: Minimum margin for penalty.
 
@@ -328,19 +332,23 @@ def nrm_neg_ell_with_penalty(
     """
     # Get base negative ELL
     neg_ell = nrm_negative_expected_log_likelihood(
-        params, theta, posteriors, response_indicators, n_categories
+        params, theta, posteriors, response_indicators, n_total_categories
     )
 
     # Reconstruct full discriminations for penalty
-    n_free = n_categories - 1
+    n_free = n_total_categories - 1
     free_a = params[:n_free]
-    discriminations = np.zeros(n_categories, dtype=np.float64)
+    discriminations = np.zeros(n_total_categories, dtype=np.float64)
     discriminations[:-1] = free_a
     discriminations[-1] = -np.sum(free_a)
 
-    # Add penalty
+    # Add penalty (excludes missing category)
+    n_response_categories = n_total_categories - 1
     penalty = compute_correct_answer_penalty(
-        discriminations, correct_answer, lambda_penalty, margin
+        discriminations[:n_response_categories],
+        correct_answer,
+        lambda_penalty,
+        margin,
     )
 
     return neg_ell + penalty
@@ -351,7 +359,7 @@ def nrm_neg_ell_gradient_with_penalty(
     theta: NDArray[np.float64],
     posteriors: NDArray[np.float32],
     response_indicators: NDArray[np.float64],
-    n_categories: int,
+    n_total_categories: int,
     correct_answer: int,
     lambda_penalty: float,
     margin: float,
@@ -359,41 +367,46 @@ def nrm_neg_ell_gradient_with_penalty(
     """
     Compute gradient of negative ELL plus penalty w.r.t. free parameters.
 
+    The penalty only applies to response categories (0..K-1), not the missing
+    category (K).
+
     Args:
-        params: Free parameters [a_0, ..., a_{K-2}, b_0, ..., b_{K-2}].
+        params: Free parameters [a_0, ..., a_{K-1}, b_0, ..., b_{K-1}].
         theta: Quadrature points.
         posteriors: Posterior weights.
         response_indicators: Response indicators.
-        n_categories: Number of response categories.
-        correct_answer: Index of correct answer.
+        n_total_categories: Total number of categories (K+1, includes missing).
+        correct_answer: Index of correct answer (must be < K).
         lambda_penalty: Penalty weight.
         margin: Minimum margin for penalty.
 
     Returns:
-        Gradient of negative ELL plus penalty, shape (2 * (K-1),).
+        Gradient of negative ELL plus penalty, shape (2 * K,).
     """
     # Get base gradient
     grad = nrm_negative_expected_log_likelihood_gradient(
-        params, theta, posteriors, response_indicators, n_categories
+        params, theta, posteriors, response_indicators, n_total_categories
     )
 
     # Reconstruct full discriminations for penalty gradient
-    n_free = n_categories - 1
+    n_free = n_total_categories - 1
     free_a = params[:n_free]
-    discriminations = np.zeros(n_categories, dtype=np.float64)
+    discriminations = np.zeros(n_total_categories, dtype=np.float64)
     discriminations[:-1] = free_a
     discriminations[-1] = -np.sum(free_a)
 
-    # Compute penalty gradient w.r.t. full discriminations
-    penalty_grad_full = compute_correct_answer_penalty_gradient(
-        discriminations, correct_answer, lambda_penalty, margin
+    # Compute penalty gradient w.r.t. response category discriminations only
+    # (excludes missing category)
+    n_response_categories = n_total_categories - 1
+    penalty_grad_response = compute_correct_answer_penalty_gradient(
+        discriminations[:n_response_categories],
+        correct_answer,
+        lambda_penalty,
+        margin,
     )
 
-    # Apply chain rule for sum-to-zero:
-    # ∂P / ∂a_k^free = ∂P / ∂a_k - ∂P / ∂a_{K-1}
-    penalty_grad_free_a = penalty_grad_full[:-1] - penalty_grad_full[-1]
-
-    # Add penalty gradient to discrimination gradients only
-    grad[:n_free] += penalty_grad_free_a
+    # All response categories are free params, so no chain rule needed for them
+    # Just add the penalty gradient directly
+    grad[:n_response_categories] += penalty_grad_response
 
     return grad

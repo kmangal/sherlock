@@ -23,7 +23,7 @@ from memory_profiler import memory_usage  # type: ignore[import-untyped]
 from numpy.typing import NDArray
 
 from analysis_service.core.constants import MISSING_VALUE
-from analysis_service.irt.estimation.data_models import ResponseMatrix
+from analysis_service.core.data_models import ResponseMatrix
 from analysis_service.irt.estimation.estimator import (
     IRTEstimationResult,
     NRMEstimator,
@@ -175,7 +175,7 @@ def load_dataset(dataset: str) -> tuple[ResponseMatrix, str]:
         # Convert to ResponseMatrix
         response_arrays = [parse_answer_string(s) for s in data.answer_strings]
         responses = np.stack(response_arrays)
-        n_categories = config.n_choices
+        n_categories = config.n_response_categories
 
         return ResponseMatrix(
             responses=responses, n_categories=n_categories

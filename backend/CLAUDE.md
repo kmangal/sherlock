@@ -45,7 +45,7 @@ analysis_service
 uv run mypy
 
 3. Run tests
-uv run python -m pytest                          # Run tests
+uv run python -m pytest -s                       # Run tests
 uv run python -m pytest --cov --cov-report=term  # Run tests with coverage
 uv run python -m pytest --cov --cov-report=html  # Generate HTML coverage report (htmlcov/)
 
@@ -88,3 +88,5 @@ uv run lint-imports                    # Import linting
     Constants that represent fixed concepts should be placed in a constants.py file (e.g. anlaysis_service.core.constants).
     Otherwise, default paramter values should be declared at the top of the file in all caps, and the methods
     should have optional kwargs for overriding.
+
+* As much as possible, rely on types to ensure logical consistency. But where necessary, functions should be written defensively: They should not assume that the inputs provided are correct, and should raise exceptions as soon as an inconsistency is detected.

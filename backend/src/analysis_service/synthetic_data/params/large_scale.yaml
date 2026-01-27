@@ -4,9 +4,13 @@
 
 n_candidates: 500000
 n_questions: 100
-n_choices: 4
+n_response_categories: 4
 
-missing_rate: 0.05
+missing:
+  model: mcar
+  params:
+    rate: 0.05
+
 random_seed: 432
 
 # ============================================================================

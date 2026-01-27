@@ -1,0 +1,2 @@
+class ConverenceFailedError(Exception):
+    pass

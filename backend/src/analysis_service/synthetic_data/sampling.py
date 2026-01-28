@@ -226,14 +226,23 @@ registry = SamplerRegistry()
 
 
 @registry.register("normal")
-def normal(*, mean: float = 0.0, std: float = 1.0) -> ScipyDistribution:
+def normal(
+    *,
+    mean: float = 0.0,
+    std: float = 1.0,
+    **kwargs: float,
+) -> ScipyDistribution:
     """Normal distribution."""
     return ScipyDistribution(stats.norm(loc=mean, scale=std))
 
 
 @registry.register("skew_normal")
 def skew_normal(
-    *, a: float, loc: float = 0.0, scale: float = 1.0
+    *,
+    a: float,
+    loc: float = 0.0,
+    scale: float = 1.0,
+    **kwargs: float,
 ) -> ScipyDistribution:
     """
     Skew-normal distribution.
@@ -254,6 +263,7 @@ def bimodal(
     loc2: float,
     scale2: float,
     weight1: float,
+    **kwargs: float,
 ) -> Distribution:
     """
     Bimodal distribution (mixture of two normals).
@@ -275,7 +285,12 @@ def bimodal(
 
 
 @registry.register("uniform")
-def uniform(*, low: float = -1.0, high: float = 1.0) -> ScipyDistribution:
+def uniform(
+    *,
+    low: float = -1.0,
+    high: float = 1.0,
+    **kwargs: float,
+) -> ScipyDistribution:
     """Uniform distribution."""
     return ScipyDistribution(stats.uniform(loc=low, scale=high - low))
 
@@ -287,6 +302,7 @@ def truncated_normal(
     std: float = 1.0,
     lower: float | None = None,
     upper: float | None = None,
+    **kwargs: float,
 ) -> ScipyDistribution:
     """
     Truncated normal distribution.
@@ -307,14 +323,23 @@ def truncated_normal(
 
 @registry.register("student_t")
 def student_t(
-    *, df: float, loc: float = 0.0, scale: float = 1.0
+    *,
+    df: float,
+    loc: float = 0.0,
+    scale: float = 1.0,
+    **kwargs: float,
 ) -> ScipyDistribution:
     """Student's t distribution (heavier tails than normal)."""
     return ScipyDistribution(stats.t(df=df, loc=loc, scale=scale))
 
 
 @registry.register("log_normal")
-def log_normal(*, mean: float, std: float) -> ScipyDistribution:
+def log_normal(
+    *,
+    mean: float,
+    std: float,
+    **kwargs: float,
+) -> ScipyDistribution:
     """
     Log-normal distribution parameterized by mean and std of the log-normal.
 

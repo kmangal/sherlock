@@ -21,7 +21,7 @@ ability:
   distribution: normal
   params:
     mean: 0.0
-    std: 3.0
+    std: 1.0
 
 # ============================================================================
 # Marginal Distributions for IRT Parameters

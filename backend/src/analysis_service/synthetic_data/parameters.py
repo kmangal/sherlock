@@ -137,6 +137,20 @@ class JointParameterSampler:
             config.missing.model, config.missing.params
         )
 
+    @staticmethod
+    def _recenter_array(array: NDArray[np.float64]) -> NDArray[np.float64]:
+        center = np.mean(array, axis=1, keepdims=True, dtype=np.float64)
+        return array - center
+
+    def _recenter_parameters(
+        self,
+        params: SampledParameters,
+    ) -> None:
+        """Recenters the discrimination and intercept parameters"""
+        assert params.includes_missing_values
+        params.discrimination = self._recenter_array(params.discrimination)
+        params.intercept = self._recenter_array(params.intercept)
+
     def sample(
         self,
         n_questions: int,
@@ -214,6 +228,9 @@ class JointParameterSampler:
         parameters = self._missingness_model.generate_missing_params(
             raw_parameters, theta, rng
         )
+
+        # Recenter parameters
+        self._recenter_parameters(parameters)
 
         return parameters
 

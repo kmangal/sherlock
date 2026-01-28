@@ -15,7 +15,7 @@ from numpy.typing import NDArray
 from analysis_service.core.constants import MISSING_VALUE
 from analysis_service.core.data_models import ResponseMatrix
 from analysis_service.core.utils import get_rng
-from analysis_service.irt.estimation.abilities import sample_abilities
+from analysis_service.irt.estimation.abilities import estimate_abilities_eap
 from analysis_service.irt.estimation.config import EstimationConfig
 from analysis_service.irt.estimation.estimator import IRTEstimationResult
 from analysis_service.irt.estimation.parameters import NRMItemParameters
@@ -140,6 +140,6 @@ def sample_synthetic_responses(
         for ip in item_params_list
     )
 
-    abilities = sample_abilities(data, model, config, rng)
-    sample = sample_responses_batch(abilities, list(item_params_list), rng)
+    abilities = estimate_abilities_eap(data, model, config)
+    sample = sample_responses_batch(abilities.eap, list(item_params_list), rng)
     return ResponseMatrix(responses=sample, n_categories=n_response_categories)

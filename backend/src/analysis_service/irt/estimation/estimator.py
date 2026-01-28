@@ -307,6 +307,13 @@ class NRMEstimator:
         else:
             total_iterations += self.config.convergence.max_em_iterations
 
+        mean_discrim = np.mean(
+            [np.mean(p.discriminations[: data.n_categories]) for p in params]
+        )
+
+        if mean_discrim < 0:
+            self._flip_discrimination(params)
+
         return IRTEstimationResult(
             item_parameters=tuple(params),
             log_likelihood=e_result.log_likelihood,
@@ -367,6 +374,14 @@ class NRMEstimator:
             new_params.append(new_item_params)
 
         return new_params
+
+    @staticmethod
+    def _flip_discrimination(
+        params: list[NRMItemParameters],
+    ) -> None:
+        """Flips the discrimination values in place"""
+        for p in params:
+            p.discriminations = tuple([-x for x in p.discriminations])
 
     def _initialize(self, data: ResponseMatrix) -> list[NRMItemParameters]:
         """

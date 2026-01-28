@@ -1,2 +1,2 @@
-class ConverenceFailedError(Exception):
+class ConvergenceFailedError(Exception):
     pass

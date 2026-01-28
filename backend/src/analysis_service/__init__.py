@@ -20,3 +20,5 @@ root_logger.addHandler(console_handler)
 
 # 3. Suppress specific chatty library loggers by setting their levels higher
 # If needed
+logging.getLogger("numba").setLevel(logging.WARNING)
+logging.getLogger("asyncio").setLevel(logging.WARNING)

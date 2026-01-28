@@ -10,7 +10,6 @@ from analysis_service.detection.similarity import (
     count_matching_responses,
     find_max_similarity,
     max_similarity_per_candidate,
-    measure_observed_similarity,
 )
 
 __all__ = [
@@ -21,7 +20,6 @@ __all__ = [
     "DetectionPipeline",
     "find_max_similarity",
     "max_similarity_per_candidate",
-    "measure_observed_similarity",
     "Suspect",
     "ThresholdDetectionPipeline",
 ]

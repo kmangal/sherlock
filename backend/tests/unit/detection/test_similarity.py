@@ -9,7 +9,6 @@ from analysis_service.detection.similarity import (
     count_matching_responses,
     find_max_similarity,
     max_similarity_per_candidate,
-    measure_observed_similarity,
 )
 
 
@@ -158,64 +157,3 @@ class TestMaxSimilarityPerCandidate:
         assert result.dtype == np.uint32
         # With 50 items and 4 options, we expect some overlap
         assert np.max(result) > 0
-
-
-class TestMeasureObservedSimilarity:
-    def test_symmetry(self) -> None:
-        """Similarity matrix is symmetric."""
-        responses = np.array(
-            [
-                [1, 2, 3, 4],
-                [1, 2, 2, 3],
-                [4, 3, 2, 1],
-            ],
-            dtype=np.int8,
-        )
-        result = measure_observed_similarity(responses)
-        np.testing.assert_array_equal(result, result.T)
-
-    def test_diagonal_is_zero(self) -> None:
-        """Diagonal should be zero (not comparing with self in meaningful way)."""
-        responses = np.array(
-            [
-                [1, 2, 3, 4],
-                [1, 2, 3, 4],
-            ],
-            dtype=np.int8,
-        )
-        result = measure_observed_similarity(responses)
-        # Diagonal is 0 due to implementation (lower triangular + transpose)
-        np.testing.assert_array_equal(np.diag(result), [0, 0])
-
-    def test_correct_pairwise_values(self) -> None:
-        """Verify pairwise similarity values are correct."""
-        responses = np.array(
-            [
-                [1, 2, 3, 4],  # 2 matches with row 1, 0 with row 2
-                [1, 2, 1, 1],  # 2 matches with row 0, 1 with row 2
-                [4, 3, 2, 1],  # 0 matches with row 0, 1 with row 1
-            ],
-            dtype=np.int8,
-        )
-        result = measure_observed_similarity(responses)
-
-        assert result[0, 1] == 2
-        assert result[1, 0] == 2
-        assert result[0, 2] == 0
-        assert result[2, 0] == 0
-        assert result[1, 2] == 1
-        assert result[2, 1] == 1
-
-    def test_with_missing_values(self) -> None:
-        """Missing values are ignored in pairwise computation."""
-        responses = np.array(
-            [
-                [1, MISSING_VALUE, 3, 4],
-                [1, 2, 3, 4],
-            ],
-            dtype=np.int8,
-        )
-        result = measure_observed_similarity(responses)
-        # Position 1 ignored, 3 matches at positions 0, 2, 3
-        assert result[0, 1] == 3
-        assert result[1, 0] == 3

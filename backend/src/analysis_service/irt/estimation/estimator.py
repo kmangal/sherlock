@@ -46,7 +46,7 @@ class EStepResult:
         log_likelihood: Marginal log-likelihood for current parameters.
     """
 
-    posteriors: NDArray[np.float32]
+    posteriors: NDArray[np.float64]
     log_likelihood: float
 
 
@@ -211,7 +211,7 @@ class NRMEstimator:
         # Posteriors (normalized)
         posteriors = np.exp(log_lik_shifted)
         row_sums = posteriors.sum(axis=1, keepdims=True)
-        posteriors = posteriors / (row_sums + 1e-300)
+        posteriors: NDArray[np.float64] = posteriors / (row_sums + 1e-300)  # type: ignore[no-redef]
 
         # Marginal log-likelihood
         # LL = sum over candidates of log(sum over theta of P(responses|theta) * P(theta))
@@ -220,11 +220,7 @@ class NRMEstimator:
         )
         total_ll = float(np.sum(log_marginal))
 
-        # Cast posteriors to float32 to reduce memory
-        # Precision is sufficient for EM weights
-        posteriors_f32: NDArray[np.float32] = posteriors.astype(np.float32)
-
-        return EStepResult(posteriors=posteriors_f32, log_likelihood=total_ll)
+        return EStepResult(posteriors=posteriors, log_likelihood=total_ll)
 
     def fit(
         self,
@@ -325,7 +321,7 @@ class NRMEstimator:
     def _m_step(
         self,
         data: ResponseMatrix,
-        posteriors: NDArray[np.float32],
+        posteriors: NDArray[np.float64],
         current_params: list[NRMItemParameters],
     ) -> list[NRMItemParameters]:
         """
@@ -356,7 +352,7 @@ class NRMEstimator:
     def _m_step_warmup(
         self,
         data: ResponseMatrix,
-        posteriors: NDArray[np.float32],
+        posteriors: NDArray[np.float64],
         current_params: list[NRMItemParameters],
     ) -> list[NRMItemParameters]:
         """M-step during warmup: only optimize intercepts."""
@@ -484,7 +480,7 @@ class NRMEstimator:
         self,
         item_idx: int,
         responses: NDArray[np.int8],
-        posteriors: NDArray[np.float32],
+        posteriors: NDArray[np.float64],
         current: NRMItemParameters,
         n_response_categories: int,
         fix_discriminations: bool = False,
@@ -602,7 +598,7 @@ class NRMEstimator:
         item_idx: int,
         current: NRMItemParameters,
         theta: NDArray[np.float64],
-        posteriors: NDArray[np.float32],
+        posteriors: NDArray[np.float64],
         response_indicators: NDArray[np.float64],
         n_response_categories: int,
     ) -> NRMItemParameters:
@@ -621,7 +617,7 @@ class NRMEstimator:
 
         def objective(b_free: NDArray[np.float64]) -> float:
             # Build full parameter array with fixed discriminations
-            params = np.concatenate([fixed_a, b_free])
+            params = np.concatenate((fixed_a, b_free))
             return float(
                 nrm_negative_expected_log_likelihood(
                     params,
@@ -633,7 +629,7 @@ class NRMEstimator:
             )
 
         def gradient(b_free: NDArray[np.float64]) -> NDArray[np.float64]:
-            params = np.concatenate([fixed_a, b_free])
+            params = np.concatenate((fixed_a, b_free))
             full_grad = nrm_negative_expected_log_likelihood_gradient(
                 params,
                 theta,

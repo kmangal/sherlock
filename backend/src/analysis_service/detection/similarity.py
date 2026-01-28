@@ -1,5 +1,5 @@
 import numpy as np
-from numba import njit  # type: ignore
+from numba import njit, prange  # type: ignore
 from numpy.typing import NDArray
 
 from analysis_service.core.constants import MISSING_VALUE
@@ -20,23 +20,7 @@ def count_matching_responses(
     return np.uint32(np.count_nonzero(matches))
 
 
-@njit  # type: ignore
-def find_max_similarity(responses: NDArray[np.int8]) -> np.uint32:
-    """Find maximum similarity without allocating full matrix. Memory-efficient."""
-    n = responses.shape[0]
-    max_sim = np.uint32(0)
-
-    for i in range(n):
-        for j in range(i):
-            sim = count_matching_responses(responses[i, :], responses[j, :])
-
-            if sim > max_sim:
-                max_sim = sim
-
-    return max_sim
-
-
-@njit  # type: ignore
+@njit(parallel=True)  # type: ignore
 def max_similarity_per_candidate(
     responses: NDArray[np.int8],
 ) -> NDArray[np.uint32]:
@@ -44,12 +28,11 @@ def max_similarity_per_candidate(
     Compute the maximum similarity for each candidate across all other candidates.
 
     Returns shape (N,) instead of (N, N), providing O(N) memory instead of O(N²).
-    This enables processing 500k+ candidates without excessive memory usage.
     """
     n = responses.shape[0]
     max_sim = np.zeros(n, dtype=np.uint32)
 
-    for i in range(n):
+    for i in prange(n):
         for j in range(i):
             sim = count_matching_responses(responses[i, :], responses[j, :])
             if sim > max_sim[i]:
@@ -61,24 +44,7 @@ def max_similarity_per_candidate(
 
 
 @njit  # type: ignore
-def measure_observed_similarity(
-    responses: NDArray[np.int8],
-) -> NDArray[np.uint32]:
-    """
-    Compute pairwise similarities while ignoring missing values (encoded as MISSING_VALUE).
-
-    Only counts similarities for questions where both candidates provided non-missing responses.
-
-    Note: This allocates an O(N²) matrix. For large datasets, prefer max_similarity_per_candidate.
-    """
-    n = responses.shape[0]
-    similarity = np.zeros(shape=(n, n), dtype=np.uint32)
-
-    for i in range(n):
-        for j in range(i):
-            similarity[i, j] = count_matching_responses(
-                responses[i, :], responses[j, :]
-            )
-
-    result = similarity + similarity.T
-    return result.astype(np.uint32)
+def find_max_similarity(responses: NDArray[np.int8]) -> np.uint32:
+    """Find maximum similarity across all pairwise comparisons."""
+    sims = max_similarity_per_candidate(responses)
+    return np.uint32(np.max(sims))

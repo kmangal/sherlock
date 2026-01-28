@@ -20,6 +20,7 @@ Chain rule for sum-to-zero (free params k=0..K-1):
 """
 
 import numpy as np
+from numba import njit, prange  # type: ignore
 from numpy.typing import NDArray
 
 # Exponent clipping bounds to prevent overflow
@@ -27,6 +28,37 @@ EXPONENT_CLIP_MIN = -30.0
 EXPONENT_CLIP_MAX = 30.0
 
 
+@njit(parallel=True)  # type: ignore
+def rowwise_max(a: NDArray[np.float64]) -> NDArray[np.float64]:
+    """numba compatible implementation of np.max(a, axis=1, keepdims=True)"""
+    n, m = a.shape
+    out = np.empty((n, 1))  # keepdims=True equivalent
+
+    # Run each row in parallel
+    for i in prange(n):
+        mx = a[i, 0]
+        for j in range(1, m):
+            if a[i, j] > mx:
+                mx = a[i, j]
+        out[i, 0] = mx
+    return out
+
+
+@njit(parallel=True)  # type: ignore
+def rowwise_sum(a: NDArray[np.float64]) -> NDArray[np.float64]:
+    n, m = a.shape
+    out = np.empty((n, 1), dtype=a.dtype)
+
+    for i in prange(n):
+        s = 0.0
+        for j in range(m):
+            s += a[i, j]
+        out[i, 0] = s
+
+    return out
+
+
+@njit  # type: ignore
 def compute_nrm_probabilities(
     theta: NDArray[np.float64],
     discriminations: NDArray[np.float64],
@@ -53,20 +85,19 @@ def compute_nrm_probabilities(
     logits = np.clip(logits, EXPONENT_CLIP_MIN, EXPONENT_CLIP_MAX)
 
     # Log-sum-exp trick for stability
-    max_logits = np.max(logits, axis=1, keepdims=True)
+    max_logits = rowwise_max(logits)
     shifted = logits - max_logits
     exp_shifted = np.exp(shifted)
-    probs: NDArray[np.float64] = exp_shifted / np.sum(
-        exp_shifted, axis=1, keepdims=True
-    )
+    probs: NDArray[np.float64] = exp_shifted / rowwise_sum(exp_shifted)
 
     return probs
 
 
+@njit  # type: ignore
 def nrm_negative_expected_log_likelihood(
     params: NDArray[np.float64],
     theta: NDArray[np.float64],
-    posteriors: NDArray[np.float32],
+    posteriors: NDArray[np.float64],
     response_indicators: NDArray[np.float64],
     n_total_categories: int,
 ) -> float:
@@ -128,10 +159,11 @@ def nrm_negative_expected_log_likelihood(
     return -expected_ll
 
 
+@njit  # type: ignore
 def nrm_negative_expected_log_likelihood_gradient(
     params: NDArray[np.float64],
     theta: NDArray[np.float64],
-    posteriors: NDArray[np.float32],
+    posteriors: NDArray[np.float64],
     response_indicators: NDArray[np.float64],
     n_total_categories: int,
 ) -> NDArray[np.float64]:
@@ -225,11 +257,12 @@ def nrm_negative_expected_log_likelihood_gradient(
     grad_free_b = grad_b[:-1] - grad_b[-1]
 
     # Return negative gradient (we're minimizing)
-    gradient = np.concatenate([grad_free_a, grad_free_b])
+    gradient = np.concatenate((grad_free_a, grad_free_b))
     neg_gradient: NDArray[np.float64] = -gradient
     return neg_gradient
 
 
+@njit  # type: ignore
 def compute_correct_answer_penalty(
     discriminations: NDArray[np.float64],
     correct_answer: int,
@@ -262,6 +295,7 @@ def compute_correct_answer_penalty(
     return lambda_penalty * penalty
 
 
+@njit  # type: ignore
 def compute_correct_answer_penalty_gradient(
     discriminations: NDArray[np.float64],
     correct_answer: int,
@@ -301,10 +335,11 @@ def compute_correct_answer_penalty_gradient(
     return grad
 
 
+@njit  # type: ignore
 def nrm_neg_ell_with_penalty(
     params: NDArray[np.float64],
     theta: NDArray[np.float64],
-    posteriors: NDArray[np.float32],
+    posteriors: NDArray[np.float64],
     response_indicators: NDArray[np.float64],
     n_total_categories: int,
     correct_answer: int,
@@ -351,13 +386,14 @@ def nrm_neg_ell_with_penalty(
         margin,
     )
 
-    return neg_ell + penalty
+    return float(neg_ell + penalty)
 
 
+@njit  # type: ignore
 def nrm_neg_ell_gradient_with_penalty(
     params: NDArray[np.float64],
     theta: NDArray[np.float64],
-    posteriors: NDArray[np.float32],
+    posteriors: NDArray[np.float64],
     response_indicators: NDArray[np.float64],
     n_total_categories: int,
     correct_answer: int,
@@ -409,4 +445,5 @@ def nrm_neg_ell_gradient_with_penalty(
     # Just add the penalty gradient directly
     grad[:n_response_categories] += penalty_grad_response
 
+    assert isinstance(grad, np.ndarray)
     return grad

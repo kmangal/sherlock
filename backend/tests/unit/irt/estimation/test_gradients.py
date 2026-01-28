@@ -66,12 +66,10 @@ class TestNRMGradients:
         # Setup
         theta = np.linspace(-3, 3, n_quadrature, dtype=np.float64)
 
-        # Random posteriors (normalized per candidate, float32 per UPDATES.md)
+        # Random posteriors (normalized per candidate)
         rng = np.random.default_rng(42)
         posteriors_raw = rng.random((n_candidates, n_quadrature))
-        posteriors = (
-            posteriors_raw / posteriors_raw.sum(axis=1, keepdims=True)
-        ).astype(np.float32)
+        posteriors = posteriors_raw / posteriors_raw.sum(axis=1, keepdims=True)
 
         # Random response indicators (one-hot per candidate)
         response_indicators = np.zeros((n_candidates, n_categories))
@@ -126,9 +124,7 @@ class TestNRMGradients:
         theta = np.linspace(-2, 2, n_quadrature, dtype=np.float64)
 
         # Uniform posteriors (float32)
-        posteriors = (
-            np.ones((n_candidates, n_quadrature)) / n_quadrature
-        ).astype(np.float32)
+        posteriors = np.ones((n_candidates, n_quadrature)) / n_quadrature
 
         # All respond with category 1
         response_indicators = np.zeros((n_candidates, n_categories))

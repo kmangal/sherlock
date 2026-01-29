@@ -23,7 +23,18 @@ uv sync
 uv run python -m analysis_service.api
 ```
 
-The server starts at `http://127.0.0.1:8000` by default. Configure via environment variables prefixed with `SHERLOCK_`:
+The server starts at `http://127.0.0.1:8000` by default.
+
+#### Docker
+
+Build and run from the `backend/` directory:
+
+```bash
+docker build -t sherlock-backend backend/
+docker run -p 8000:8000 sherlock-backend
+```
+
+Configure via environment variables prefixed with `SHERLOCK_`:
 
 ```bash
 SHERLOCK_HOST=0.0.0.0 SHERLOCK_PORT=9000 uv run python -m analysis_service.api

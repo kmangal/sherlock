@@ -10,6 +10,28 @@ Determining what counts as "unusually high" depends on the exam and test-takers.
 
 To answer this, Sherlock builds a statistical model from the answer patterns, then simulates how often candidates would have similar answers based purely on their ability and question difficulty. Using these simulations, it calculates the probability of observing the actual degree of similarity and flags cases where this probability falls below a set threshold.
 
+The analysis *does not* require you to pass in the correct answers, or any metadata about candidates. This is helpful when that information isn't available (e.g. you didn't conduct the exam), or when the exam authority wants to limit data access during exam processing.
+
+## Current Status
+
+**The project is still in its early stages.**
+
+Current functionality:
+
+* Verify that the model can successfully recover latent parameters and predict empirical probability distributions:
+  1. Define a sampling distribution for the question / candidate parameters at `backend/src/analysis_service/synthetic_data/params/`. Use `baseline.yaml` as an example.
+  2. Sample data from the preset: `uv --directory backend run python -m scripts.refresh_synthetic_data --preset [preset-name]`
+  3. Run model diagnostics for the preset: `uv --directory backend run python -m scripts.run_model_diagnostics [preset-name]`
+
+* Check whether an exam has any likely cheaters
+  1. Build the docker image: `docker build -t sherlock-backend backend/`
+  2. Run the docker image: `docker run -p 8000:8000 sherlock-backend`
+  3. Run analysis on a file of answer strings: `uv --directory backend run python -m scripts.run_analysis [preset-name] [additional-args]`
+
+Roadmap:
+  1. Calculate precision/recall under a wide range of simulated distributions.
+  2. Develop a  Desktop application (written in Typescript in `frontend/`) for non-technical users.
+
 ## Getting Started
 
 See CONTRIBUTING.md for a guide to getting your local development environment set up.

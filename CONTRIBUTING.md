@@ -2,7 +2,7 @@
 
 First off, thanks for taking the time to contribute! 🎉
 
-This project is in its early stages, so all types of contributions—including documentation, bug reports, and code suggestions—are highly valued and appreciated.
+This project is in its early stages, so any help goes a long way.
 
 ## How to Contribute
 
@@ -16,22 +16,21 @@ If you find a new bug, please include:
 *   Your environment (OS, language version, etc.).
 
 ### 2. Suggesting Enhancements
-We welcome ideas for new features or improvements! Please open an issue and tag it as an "enhancement" to start a discussion.
+Ideas for new features or improvements are welcome! Please open an issue and tag it as an "enhancement" to start a discussion.
 
 ### 3. Pull Requests (Code & Documentation)
 1.  **Fork** the repository and create your branch: `git checkout -b your-name/amazing-feature`.
 2.  **Make your changes**, following the existing code style.
-3.  **Ensure tests pass** (if applicable).
-4.  **Submit a pull request** with a clear description of what you changed.
+3.  **Submit a pull request** with a clear description of what you changed.
 
-*Note: For early-stage projects, it is often best to discuss large changes in an issue first before writing code.*
+*Note: In order to make a commit or push to the branch, all the tests will need to pass.*
 
 ### 4. Code of Conduct
 By participating in this project, you agree to maintain a respectful and welcoming environment for everyone.
 
 ## Setting Up the Development Environment
 
-Make sure that you have both `uv` and `yarn` installed on your machine.
+Make sure that you have `uv` installed on your machine.
 
 1.  Clone the repo: `git clone https://github.com/kmangal/sherlock.git`
 2.  Install `uv` on your machine:
@@ -39,15 +38,13 @@ Make sure that you have both `uv` and `yarn` installed on your machine.
     Linux / MacOS: `curl -LsSf https://astral.sh/uv/install.sh | sh`
     Windows Powershell: `irm https://astral.sh/uv/install.ps1 | iex`
 
-3.  Install `pre-commit` hooks: `uv tool install pre-commit && pre-commit install`
-4.  Install the backend dependencies: `(cd backend && uv sync --all-groups)`
-5.  Build the backend: XXXXX
-6.  Install the frontend dependencies: `(cd frontend && yarn install)`
-7.  Run using XXXX
+3.  Install `prek` hooks: `uv tool install prek && prek install`
+4.  Install the backend dependencies: `uv --directory backend sync --all-groups`
+5.  Start the API server: `uv --directory backend run python -m analysis_service.api`
 
 ## Sytle Guide
 
-We use Conventional Commits.
+This repo enforces [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/).
 
 The format should be:
 
@@ -69,6 +66,6 @@ Types to use in this repo:
 
 
 ## Need Help?
-Feel free to contact us by opening an issue or reaching out via email at kmangal@alumni.harvard.edu.
+Feel free to contact me by opening an issue or reaching out via email at kmangal@alumni.harvard.edu.
 
-Thank you for helping us grow!
+Thank you for helping this project grow!

@@ -150,8 +150,11 @@ class JobManager:
                     pipeline_type = "automatic"
                     model_version = None
 
-                suspects = await pipeline.run(
-                    exam_dataset, rng=rng, progress_callback=progress_cb
+                suspects = await asyncio.to_thread(
+                    pipeline.run,
+                    exam_dataset,
+                    rng=rng,
+                    progress_callback=progress_cb,
                 )
 
                 job.result = AnalysisResultSchema(

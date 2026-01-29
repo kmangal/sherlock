@@ -43,7 +43,7 @@ analysis_service
 uv run mypy
 
 3. Run tests
-uv run python -m pytest -s                       # Run tests
+uv run python -m pytest -s -n auto --dist=loadfile              # Run tests
 uv run python -m pytest --cov --cov-report=term  # Run tests with coverage
 uv run python -m pytest --cov --cov-report=html  # Generate HTML coverage report (htmlcov/)
 

@@ -71,12 +71,13 @@ Analysis is asynchronous: you submit a job, then poll for results.
   "exam_dataset": {
     "candidate_ids": ["C001", "C002", "C003"],
     "response_matrix": [
-      [0, 1, 2, 3, 1],
-      [0, 1, 2, 3, 1],
-      [3, 2, 1, 0, 2]
+      ["A", "B", "C", "D", "B"],
+      ["A", "B", "C", "D", "B"],
+      ["D", "C", "B", "A", "*"]
     ],
     "n_categories": 4,
-    "correct_answers": [0, 1, 2, 3, 2]
+    "correct_answers": ["A", "B", "C", "D", "C"],
+    "missing_values": ["*"]
   },
   "significance_level": 0.05,
   "num_monte_carlo": 100,
@@ -84,9 +85,10 @@ Analysis is asynchronous: you submit a job, then poll for results.
 }
 ```
 
-- `response_matrix`: each row is a candidate's answers, each value is a 0-indexed category choice (use `-1` for missing).
-- `n_categories`: number of answer choices per item (minimum 2).
-- `correct_answers` (optional): the answer key, used to improve model estimation.
+- `response_matrix`: each row is a candidate's answers as strings. Use a missing value string (default `"*"`) for unanswered items.
+- `n_categories`: number of distinct non-missing answer choices (minimum 2).
+- `correct_answers` (optional): the answer key as strings, used to improve model estimation.
+- `missing_values` (optional): set of strings treated as missing (default `["*"]`).
 - `significance_level`: p-value cutoff for flagging suspects (default `0.05`).
 - `num_monte_carlo`: number of Monte Carlo simulations (default `100`).
 - `threshold` (optional): if provided, uses a fast fixed-threshold pipeline instead of the full IRT-based analysis.
@@ -131,3 +133,35 @@ Poll `GET /api/v1/analysis/{job_id}` until `status` is `"completed"` or `"failed
   - `p_value`: probability of observing this similarity by chance (null when using the threshold pipeline).
 - `pipeline_type`: `"automatic"` (full IRT-based) or `"threshold"` (fixed cutoff).
 - While a job is running, the `progress` field reports the current phase (`"similarity"`, `"irt_fitting"`, `"threshold_calibration"`, or `"monte_carlo"`) and step counts.
+
+### CLI Script
+
+The `run_analysis.py` script provides a convenient way to submit a CSV file and view results from the command line. Start the server first, then from the `backend/` directory:
+
+```bash
+uv run python scripts/run_analysis.py data/synthetic/baseline.csv
+```
+
+The CSV must have two columns: `candidate_id` and `answer_string`, where each character in `answer_string` is one question's response. Missing responses are represented by `*` (configurable via `--missing-value`).
+
+```csv
+candidate_id,answer_string
+C0001,ABCD*BCA
+C0002,ABC*ABCA
+```
+
+Options:
+
+| Option | Default | Description |
+|---|---|---|
+| `--url` | `http://127.0.0.1:8000` | Server base URL |
+| `--threshold` | None | Use fixed-threshold pipeline |
+| `--significance-level` | `0.05` | p-value cutoff |
+| `--num-monte-carlo` | `100` | Monte Carlo simulations |
+| `--num-threshold-samples` | `100` | Threshold calibration samples |
+| `--random-seed` | None | Random seed for reproducibility |
+| `--missing-value` | `*` | String representing missing responses |
+| `--output-dir` | `reports/detection/` | Directory for JSON report output |
+| `--poll-interval` | `10.0` | Seconds between status polls |
+
+The script displays a progress spinner while the job runs and prints a table of flagged suspects on completion. Full results are saved as JSON to the output directory.

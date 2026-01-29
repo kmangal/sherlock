@@ -5,7 +5,6 @@ These tests run the full pipeline including IRT estimation.
 """
 
 import numpy as np
-import pytest
 
 from analysis_service.core.data_models import ExamDataset, ResponseMatrix
 from analysis_service.detection.pipeline import AutomaticDetectionPipeline
@@ -61,8 +60,7 @@ def inject_cheaters(
 
 
 class TestAutomaticDetectionPipelineIntegration:
-    @pytest.mark.asyncio
-    async def test_detects_injected_cheaters(self) -> None:
+    def test_detects_injected_cheaters(self) -> None:
         """Pipeline should detect candidates with artificially high similarity."""
         rng = np.random.default_rng(42)
 
@@ -93,7 +91,7 @@ class TestAutomaticDetectionPipelineIntegration:
             num_threshold_samples=20,
         )
 
-        suspects = await pipeline.run(exam_dataset, rng=rng)
+        suspects = pipeline.run(exam_dataset, rng=rng)
 
         # Check that at least some cheaters are detected
         suspect_ids = {s.candidate_id for s in suspects}
@@ -108,8 +106,7 @@ class TestAutomaticDetectionPipelineIntegration:
             f"but detected: {suspect_ids}"
         )
 
-    @pytest.mark.asyncio
-    async def test_no_flags_when_no_cheaters(self) -> None:
+    def test_no_flags_when_no_cheaters(self) -> None:
         """Pipeline should not flag candidates when there's no cheating."""
         rng = np.random.default_rng(123)
 
@@ -135,7 +132,7 @@ class TestAutomaticDetectionPipelineIntegration:
             num_threshold_samples=20,
         )
 
-        suspects = await pipeline.run(exam_dataset, rng=rng)
+        suspects = pipeline.run(exam_dataset, rng=rng)
 
         # With no cheaters, false positive rate should be low
         # Allow some false positives but not too many
@@ -144,8 +141,7 @@ class TestAutomaticDetectionPipelineIntegration:
             f"Too many false positives: {len(suspects)}/{n_candidates}"
         )
 
-    @pytest.mark.asyncio
-    async def test_suspects_have_valid_attributes(self) -> None:
+    def test_suspects_have_valid_attributes(self) -> None:
         """Suspects should have properly populated attributes."""
         rng = np.random.default_rng(456)
 
@@ -174,7 +170,7 @@ class TestAutomaticDetectionPipelineIntegration:
             num_threshold_samples=20,
         )
 
-        suspects = await pipeline.run(exam_dataset, rng=rng)
+        suspects = pipeline.run(exam_dataset, rng=rng)
 
         for suspect in suspects:
             assert suspect.candidate_id in candidate_ids
@@ -183,8 +179,7 @@ class TestAutomaticDetectionPipelineIntegration:
             assert suspect.p_value is not None
             assert 0 <= suspect.p_value <= 1
 
-    @pytest.mark.asyncio
-    async def test_higher_copy_fraction_more_detectable(self) -> None:
+    def test_higher_copy_fraction_more_detectable(self) -> None:
         """Cheaters copying more items should be easier to detect."""
         rng = np.random.default_rng(789)
 
@@ -217,7 +212,7 @@ class TestAutomaticDetectionPipelineIntegration:
             ),
             correct_answers=None,
         )
-        suspects_low = await pipeline.run(exam_low, rng=rng)
+        suspects_low = pipeline.run(exam_low, rng=rng)
 
         exam_high = ExamDataset(
             candidate_ids=candidate_ids,
@@ -226,7 +221,7 @@ class TestAutomaticDetectionPipelineIntegration:
             ),
             correct_answers=None,
         )
-        suspects_high = await pipeline.run(exam_high, rng=rng)
+        suspects_high = pipeline.run(exam_high, rng=rng)
 
         # Higher copy fraction should generally lead to more/stronger detections
         high_suspects_ids = {s.candidate_id for s in suspects_high}
@@ -243,8 +238,7 @@ class TestAutomaticDetectionPipelineIntegration:
             f"High: {high_suspects_ids}, Low: {low_suspects_ids}"
         )
 
-    @pytest.mark.asyncio
-    async def test_returns_empty_when_no_candidates_exceed_threshold(
+    def test_returns_empty_when_no_candidates_exceed_threshold(
         self,
     ) -> None:
         """Pipeline returns empty list if no candidates exceed calibrated threshold."""
@@ -277,7 +271,7 @@ class TestAutomaticDetectionPipelineIntegration:
             num_threshold_samples=20,
         )
 
-        suspects = await pipeline.run(exam_dataset, rng=rng)
+        suspects = pipeline.run(exam_dataset, rng=rng)
 
         # With diverse responses, shouldn't flag many (if any) candidates
         assert len(suspects) <= 5

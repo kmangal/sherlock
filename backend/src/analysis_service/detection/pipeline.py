@@ -26,7 +26,7 @@ ProgressCallback = Callable[[str, int, int | None, str], None]
 
 class DetectionPipeline(ABC):
     @abstractmethod
-    async def run(
+    def run(
         self,
         exam_dataset: ExamDataset,
         rng: np.random.Generator | None = None,
@@ -48,7 +48,7 @@ class ThresholdDetectionPipeline(DetectionPipeline):
             raise ValueError("threshold must be positive")
         self.threshold = threshold
 
-    async def run(
+    def run(
         self,
         exam_dataset: ExamDataset,
         rng: np.random.Generator | None = None,
@@ -160,7 +160,7 @@ class AutomaticDetectionPipeline(DetectionPipeline):
             n_categories=response_matrix.n_categories,
         )
 
-    async def run(
+    def run(
         self,
         exam_dataset: ExamDataset,
         rng: np.random.Generator | None = None,

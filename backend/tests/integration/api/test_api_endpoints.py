@@ -28,6 +28,9 @@ def _make_client() -> AsyncClient:
     return AsyncClient(transport=transport, base_url="http://testserver")
 
 
+_LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+
+
 def _small_dataset(
     n_candidates: int = 20,
     n_items: int = 10,
@@ -35,14 +38,15 @@ def _small_dataset(
     seed: int = 42,
 ) -> dict[str, object]:
     rng = np.random.default_rng(seed)
-    responses = rng.integers(
-        0, n_categories, size=(n_candidates, n_items)
-    ).tolist()
+    int_responses = rng.integers(0, n_categories, size=(n_candidates, n_items))
+    letters = [_LETTERS[i] for i in range(n_categories)]
+    responses = [[letters[v] for v in row] for row in int_responses.tolist()]
     candidate_ids = [f"C{i:04d}" for i in range(n_candidates)]
     return {
         "candidate_ids": candidate_ids,
         "response_matrix": responses,
         "n_categories": n_categories,
+        "missing_values": [],
     }
 
 
@@ -53,17 +57,20 @@ def _dataset_with_cheaters(
     seed: int = 42,
 ) -> dict[str, object]:
     rng = np.random.default_rng(seed)
-    responses = rng.integers(0, n_categories, size=(n_candidates, n_items))
+    int_responses = rng.integers(0, n_categories, size=(n_candidates, n_items))
     # Inject cheater: copy candidate 0's answers to candidate 1
     n_copy = int(n_items * 0.95)
     copy_items = rng.choice(n_items, size=n_copy, replace=False)
-    responses[1, copy_items] = responses[0, copy_items]
+    int_responses[1, copy_items] = int_responses[0, copy_items]
 
+    letters = [_LETTERS[i] for i in range(n_categories)]
+    responses = [[letters[v] for v in row] for row in int_responses.tolist()]
     candidate_ids = [f"C{i:04d}" for i in range(n_candidates)]
     return {
         "candidate_ids": candidate_ids,
-        "response_matrix": responses.tolist(),
+        "response_matrix": responses,
         "n_categories": n_categories,
+        "missing_values": [],
     }
 
 

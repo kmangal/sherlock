@@ -90,8 +90,7 @@ class TestAutomaticDetectionPipelineValidation:
 
 
 class TestThresholdDetectionPipelineRun:
-    @pytest.mark.asyncio
-    async def test_flags_candidates_above_threshold(self) -> None:
+    def test_flags_candidates_above_threshold(self) -> None:
         """Candidates with max similarity above threshold are flagged."""
         # Create data where candidates 0 and 1 are identical (high similarity)
         responses = np.array(
@@ -115,7 +114,7 @@ class TestThresholdDetectionPipelineRun:
 
         # Threshold of 5 should flag candidates 0 and 1 (similarity = 10)
         pipeline = ThresholdDetectionPipeline(threshold=5)
-        suspects = await pipeline.run(exam_dataset)
+        suspects = pipeline.run(exam_dataset)
 
         suspect_ids = {s.candidate_id for s in suspects}
         assert suspect_ids == {"A", "B"}
@@ -125,8 +124,7 @@ class TestThresholdDetectionPipelineRun:
             assert s.observed_similarity == 10
             assert s.p_value is None
 
-    @pytest.mark.asyncio
-    async def test_no_flags_below_threshold(self) -> None:
+    def test_no_flags_below_threshold(self) -> None:
         """No candidates flagged if all below threshold."""
         responses = np.array(
             [
@@ -147,12 +145,11 @@ class TestThresholdDetectionPipelineRun:
         )
 
         pipeline = ThresholdDetectionPipeline(threshold=10)
-        suspects = await pipeline.run(exam_dataset)
+        suspects = pipeline.run(exam_dataset)
 
         assert len(suspects) == 0
 
-    @pytest.mark.asyncio
-    async def test_single_candidate_no_flags(self) -> None:
+    def test_single_candidate_no_flags(self) -> None:
         """Single candidate cannot be flagged (no pairs)."""
         responses = np.array([[1, 2, 3, 4]], dtype=np.int8)
         candidate_ids = np.array(["A"])
@@ -168,12 +165,11 @@ class TestThresholdDetectionPipelineRun:
         # With only one candidate, max similarity is 0 (no pairs to compare)
         # Any positive threshold should result in no flags
         pipeline = ThresholdDetectionPipeline(threshold=1)
-        suspects = await pipeline.run(exam_dataset)
+        suspects = pipeline.run(exam_dataset)
 
         assert len(suspects) == 0
 
-    @pytest.mark.asyncio
-    async def test_returns_correct_observed_similarity(self) -> None:
+    def test_returns_correct_observed_similarity(self) -> None:
         """Each suspect has correct max observed similarity."""
         # Create specific similarity pattern
         responses = np.array(
@@ -195,7 +191,7 @@ class TestThresholdDetectionPipelineRun:
         )
 
         pipeline = ThresholdDetectionPipeline(threshold=3)
-        suspects = await pipeline.run(exam_dataset)
+        suspects = pipeline.run(exam_dataset)
 
         # Only A and B should be flagged (max similarity = 5)
         suspect_map = {s.candidate_id: s for s in suspects}

@@ -2,8 +2,9 @@ from datetime import datetime
 from enum import StrEnum
 
 import numpy as np
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
+from analysis_service.core.constants import MISSING_CHAR, MISSING_VALUE
 from analysis_service.core.data_models import ExamDataset, ResponseMatrix
 from analysis_service.detection.data_models import Suspect
 from analysis_service.irt.estimation.config import EstimationConfig
@@ -30,20 +31,58 @@ class AnalysisPhase(StrEnum):
 
 class ExamDatasetSchema(BaseModel):
     candidate_ids: list[str]
-    response_matrix: list[list[int]]
+    response_matrix: list[list[str]]
     n_categories: int = Field(ge=2)
-    correct_answers: list[int] | None = None
+    correct_answers: list[str] | None = None
+    missing_values: set[str] = {MISSING_CHAR}
+
+    @model_validator(mode="after")
+    def validate_n_categories(self) -> "ExamDatasetSchema":
+        unique = {
+            cell
+            for row in self.response_matrix
+            for cell in row
+            if cell not in self.missing_values
+        }
+        if len(unique) != self.n_categories:
+            raise ValueError(
+                f"n_categories={self.n_categories} but found "
+                f"{len(unique)} unique non-missing values: {sorted(unique)}"
+            )
+        return self
 
     def to_domain(self) -> ExamDataset:
-        responses = np.array(self.response_matrix, dtype=np.int8)
+        unique = sorted(
+            {
+                cell
+                for row in self.response_matrix
+                for cell in row
+                if cell not in self.missing_values
+            }
+        )
+        mapping = {v: i for i, v in enumerate(unique)}
+
+        encoded = [
+            [
+                MISSING_VALUE if cell in self.missing_values else mapping[cell]
+                for cell in row
+            ]
+            for row in self.response_matrix
+        ]
+        responses = np.array(encoded, dtype=np.int8)
         candidate_ids = np.array(self.candidate_ids, dtype=np.str_)
         rm = ResponseMatrix(
             responses=responses, n_categories=self.n_categories
         )
+
+        encoded_correct: list[int] | None = None
+        if self.correct_answers is not None:
+            encoded_correct = [mapping[a] for a in self.correct_answers]
+
         return ExamDataset(
             candidate_ids=candidate_ids,
             response_matrix=rm,
-            correct_answers=self.correct_answers,
+            correct_answers=encoded_correct,
         )
 
 

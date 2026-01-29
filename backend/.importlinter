@@ -1,9 +1,18 @@
 [importlinter]
-root_package = src.analysis_service
+root_package  = analysis_service
+
+[importlinter:contract:analysis-layer]
+name = Early stages cannot import from later stages
+type = layers
+layers =
+    analysis_service.api
+    analysis_service.detection
+    analysis_service.irt
+    analysis_service.core
 
 [importlinter:contract:synthetic-data-protected]
 name = Synthetic data module cannot be imported
 type = protected
 protected_modules =
-    synthetic_data
-allowed_importers = 
+    analysis_service.synthetic_data
+allowed_importers =

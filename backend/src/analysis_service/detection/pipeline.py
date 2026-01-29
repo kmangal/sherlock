@@ -1,5 +1,6 @@
 import logging
 from abc import ABC, abstractmethod
+from collections.abc import Callable
 
 import numpy as np
 from numpy.typing import NDArray
@@ -19,6 +20,9 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_NUM_THRESHOLD_SAMPLES = 100
 
+# (phase: str, current_step: int, total_steps: int | None, message: str) -> None
+ProgressCallback = Callable[[str, int, int | None, str], None]
+
 
 class DetectionPipeline(ABC):
     @abstractmethod
@@ -26,6 +30,7 @@ class DetectionPipeline(ABC):
         self,
         exam_dataset: ExamDataset,
         rng: np.random.Generator | None = None,
+        progress_callback: ProgressCallback | None = None,
     ) -> list[Suspect]: ...
 
 
@@ -47,12 +52,19 @@ class ThresholdDetectionPipeline(DetectionPipeline):
         self,
         exam_dataset: ExamDataset,
         rng: np.random.Generator | None = None,
+        progress_callback: ProgressCallback | None = None,
     ) -> list[Suspect]:
         responses = exam_dataset.response_matrix.responses
         candidate_ids = exam_dataset.candidate_ids
 
+        if progress_callback:
+            progress_callback("similarity", 0, 1, "Computing similarities")
+
         # Compute max similarity per candidate (memory-efficient)
         max_similarities = max_similarity_per_candidate(responses)
+
+        if progress_callback:
+            progress_callback("similarity", 1, 1, "Similarities computed")
 
         # Flag candidates whose max similarity exceeds threshold
         flagged_ixs = np.where(max_similarities > self.threshold)[0]
@@ -105,6 +117,7 @@ class AutomaticDetectionPipeline(DetectionPipeline):
         response_matrix: ResponseMatrix,
         fitted_parameters: IRTEstimationResult,
         rng: np.random.Generator | None,
+        progress_callback: ProgressCallback | None = None,
     ) -> np.uint32:
         """
         Calibrate threshold using percentile of max similarity across K synthetic datasets.
@@ -117,6 +130,13 @@ class AutomaticDetectionPipeline(DetectionPipeline):
         )
 
         for k in range(self.num_threshold_samples):
+            if progress_callback:
+                progress_callback(
+                    "threshold_calibration",
+                    k,
+                    self.num_threshold_samples,
+                    f"Threshold sample {k + 1}/{self.num_threshold_samples}",
+                )
             synth_responses = sample_synthetic_responses(
                 response_matrix,
                 fitted_parameters,
@@ -144,6 +164,7 @@ class AutomaticDetectionPipeline(DetectionPipeline):
         self,
         exam_dataset: ExamDataset,
         rng: np.random.Generator | None = None,
+        progress_callback: ProgressCallback | None = None,
     ) -> list[Suspect]:
         response_matrix = exam_dataset.response_matrix
         responses = response_matrix.responses
@@ -152,13 +173,24 @@ class AutomaticDetectionPipeline(DetectionPipeline):
 
         # Compute observed max similarity per candidate
         logger.info("Computing observed max similarity per candidate")
+        if progress_callback:
+            progress_callback("similarity", 0, 1, "Computing similarities")
+
         observed_max_sim = max_similarity_per_candidate(responses)
+
+        if progress_callback:
+            progress_callback("similarity", 1, 1, "Similarities computed")
 
         # Fit IRT model
         logger.info("Fitting IRT model")
+        if progress_callback:
+            progress_callback("irt_fitting", 0, None, "Fitting IRT model")
+
         estimator = NRMEstimator(rng=rng)
         fitted_parameters = estimator.fit(
-            data=response_matrix, correct_answers=correct_answers
+            data=response_matrix,
+            correct_answers=correct_answers,
+            progress_callback=progress_callback,
         )
 
         if not fitted_parameters.converged:
@@ -168,8 +200,16 @@ class AutomaticDetectionPipeline(DetectionPipeline):
         logger.info(
             f"Calibrating threshold from {self.num_threshold_samples} synthetic samples"
         )
+        if progress_callback:
+            progress_callback(
+                "threshold_calibration",
+                0,
+                self.num_threshold_samples,
+                "Calibrating threshold",
+            )
+
         threshold = self._calibrate_threshold(
-            response_matrix, fitted_parameters, rng
+            response_matrix, fitted_parameters, rng, progress_callback
         )
         logger.info(f"Calibrated threshold: {threshold}")
 
@@ -199,6 +239,13 @@ class AutomaticDetectionPipeline(DetectionPipeline):
             logger.debug(
                 f"Monte Carlo iteration {k + 1}/{self.num_monte_carlo}"
             )
+            if progress_callback:
+                progress_callback(
+                    "monte_carlo",
+                    k,
+                    self.num_monte_carlo,
+                    f"Monte Carlo iteration {k + 1}/{self.num_monte_carlo}",
+                )
             synth_responses = sample_synthetic_responses(
                 suspect_response_matrix, fitted_parameters, rng=rng
             )
@@ -208,6 +255,14 @@ class AutomaticDetectionPipeline(DetectionPipeline):
             exceedance_counts += (
                 synth_max_sim >= subset_observed_max_sim
             ).astype(np.int32)
+
+        if progress_callback:
+            progress_callback(
+                "monte_carlo",
+                self.num_monte_carlo,
+                self.num_monte_carlo,
+                "Monte Carlo complete",
+            )
 
         # P-values: proportion of synthetic samples where max_sim >= observed
         p_values = exceedance_counts / self.num_monte_carlo

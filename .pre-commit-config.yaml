@@ -33,7 +33,7 @@ repos:
 
       - id: pytest
         name: pytest
-        entry: uv run python -m pytest ./backend/tests/ -v -s
+        entry: uv run --directory backend python -m pytest -v -s
         language: system
         types: [python]
         files: ^backend/

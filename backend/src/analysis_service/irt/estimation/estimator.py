@@ -6,7 +6,7 @@ with Marginal Maximum Likelihood via EM.
 """
 
 import logging
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 
 import numpy as np
@@ -222,10 +222,14 @@ class NRMEstimator:
 
         return EStepResult(posteriors=posteriors, log_likelihood=total_ll)
 
+    # (phase: str, current_step: int, total_steps: int | None, message: str)
+    ProgressCallback = Callable[[str, int, int | None, str], None]
+
     def fit(
         self,
         data: ResponseMatrix,
         correct_answers: Sequence[int | None] | None = None,
+        progress_callback: ProgressCallback | None = None,
     ) -> IRTEstimationResult:
         """
         Fit NRM to response data using MML-EM with optional warmup.
@@ -240,6 +244,7 @@ class NRMEstimator:
             data: Response matrix with candidate responses.
             correct_answers: Optional sequence of correct answer indices
                 (0-indexed) for each item. Use None for unknown.
+            progress_callback: Optional callback for reporting progress.
 
         Returns:
             FittedModel with estimated parameters and fit statistics.
@@ -279,6 +284,14 @@ class NRMEstimator:
         convergence_status = ConvergenceStatus.MAX_ITERATIONS
 
         for iteration in range(self.config.convergence.max_em_iterations):
+            if progress_callback:
+                progress_callback(
+                    "irt_fitting",
+                    iteration,
+                    None,
+                    f"EM iteration {iteration + 1}",
+                )
+
             e_result = self._e_step(data, params)
             logger.debug(
                 f"Iteration {iteration + 1}: "

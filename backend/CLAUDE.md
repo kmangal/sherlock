@@ -8,8 +8,6 @@ A Python backend service designed to detect cheating / copying on multiple choic
     candidate_id: str
     answer_string: str
 2. Fit an IRT model to the data:
-    When correct answers are available, fit 3PL
-    Otherwise, fit 3PL style nominal response model
 3. Generating synthetic datasets from the fit IRT model
 4. Generate test statistics by comparing distribution of synthetic data to observed data
 5. Flag candidates where test statistics exceed some critical value 

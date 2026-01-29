@@ -12,6 +12,8 @@ To answer this, Sherlock builds a statistical model from the answer patterns, th
 
 The analysis *does not* require you to pass in the correct answers, or any metadata about candidates. This is helpful when that information isn't available (e.g. you didn't conduct the exam), or when the exam authority wants to limit data access during exam processing.
 
+However, if you do have access to the correct answers, then it may help improve the quality of the underlying statistical model. This may in turn help you detect cheaters with greater accuracy.
+
 ## Current Status
 
 **The project is still in its early stages.**

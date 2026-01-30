@@ -38,17 +38,21 @@ analysis_service
 1. Make changes
 
 2. Typecheck
+```sh
 uv run mypy
+```
 
 3. Run tests
-uv run python -m pytest -s -n auto --dist=loadfile              # Run tests
-uv run python -m pytest --cov --cov-report=term  # Run tests with coverage
-uv run python -m pytest --cov --cov-report=html  # Generate HTML coverage report (htmlcov/)
+```sh
+uv run python -m pytest -s -n auto --dist=loadfile
+```
 
 4. Lint
-uv run ruff format                # Code formatting
-uv run ruff check                 # Linting
-uv run lint-imports               # Import linting
+```sh
+uv run ruff format
+uv run ruff check
+uv run lint-imports
+```
 
 # Style Guide
 

@@ -4,9 +4,7 @@ A Python backend service designed to detect cheating / copying on multiple choic
 
 # Methodology
 
-1. Ingest exam data. For each candidate, there are two fields:
-    candidate_id: str
-    answer_string: str
+1. Ingest exam data.
 2. Fit an IRT model to the data:
 3. Generating synthetic datasets from the fit IRT model
 4. Generate test statistics by comparing distribution of synthetic data to observed data
@@ -48,9 +46,9 @@ uv run python -m pytest --cov --cov-report=term  # Run tests with coverage
 uv run python -m pytest --cov --cov-report=html  # Generate HTML coverage report (htmlcov/)
 
 4. Lint
-uv run ruff format src/                # Code formatting
-uv run ruff check src/                 # Linting
-uv run lint-imports                    # Import linting
+uv run ruff format                # Code formatting
+uv run ruff check                 # Linting
+uv run lint-imports               # Import linting
 
 # Style Guide
 
@@ -72,7 +70,7 @@ uv run lint-imports                    # Import linting
     @dataclass
     class Output:
         key1: float
-        key2: flota
+        key2: float
     
     def my_function() -> Output:
         return Output(key1=1.0, key2=2.0)
@@ -82,9 +80,8 @@ uv run lint-imports                    # Import linting
     ```
 
 * Avoid magic constants!
+    - Constants that represent fixed concepts should be placed in a constants.py file (e.g. anlaysis_service.core.constants).
+    - Otherwise, default paramter values should be declared at the top of the file in all caps, and the methods should have optional kwargs for overriding.
 
-    Constants that represent fixed concepts should be placed in a constants.py file (e.g. anlaysis_service.core.constants).
-    Otherwise, default paramter values should be declared at the top of the file in all caps, and the methods
-    should have optional kwargs for overriding.
-
-* As much as possible, rely on types to ensure logical consistency. But where necessary, functions should be written defensively: They should not assume that the inputs provided are correct, and should raise exceptions as soon as an inconsistency is detected.
+* As much as possible, rely on types to ensure logical consistency. But where necessary, functions should be written defensively.
+    - Do not assume that the inputs provided are logically consistent. We should raise exceptions as soon as we are able to detect an inconsistency.

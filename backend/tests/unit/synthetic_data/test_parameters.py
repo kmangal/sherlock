@@ -8,6 +8,7 @@ The NRM model uses:
 """
 
 import numpy as np
+import numpy.typing as npt
 import pytest
 
 from analysis_service.core.utils import get_rng
@@ -67,7 +68,9 @@ class TestJointParameterSampler:
         return get_preset("baseline")
 
     @pytest.fixture
-    def theta(self, baseline_config: GenerationConfig) -> np.ndarray:
+    def theta(
+        self, baseline_config: GenerationConfig
+    ) -> npt.NDArray[np.float64]:
         """Sample abilities for testing."""
         rng = get_rng(123)
         return rng.standard_normal(baseline_config.n_candidates).astype(
@@ -75,7 +78,7 @@ class TestJointParameterSampler:
         )
 
     def test_sample_returns_correct_shapes(
-        self, baseline_config: GenerationConfig, theta: np.ndarray
+        self, baseline_config: GenerationConfig, theta: npt.NDArray[np.float64]
     ) -> None:
         sampler = JointParameterSampler(baseline_config)
         rng = get_rng(42)
@@ -97,7 +100,7 @@ class TestJointParameterSampler:
         assert result.includes_missing_values
 
     def test_sample_correct_answer_gets_discrimination_boost(
-        self, baseline_config: GenerationConfig, theta: np.ndarray
+        self, baseline_config: GenerationConfig, theta: npt.NDArray[np.float64]
     ) -> None:
         """Correct answer discrimination should be boosted by the gap parameter.
 
@@ -138,7 +141,7 @@ class TestJointParameterSampler:
         )
 
     def test_sample_reproducible(
-        self, baseline_config: GenerationConfig, theta: np.ndarray
+        self, baseline_config: GenerationConfig, theta: npt.NDArray[np.float64]
     ) -> None:
         sampler = JointParameterSampler(baseline_config)
         n_questions = 50
@@ -170,7 +173,7 @@ class TestJointParameterSampler:
         np.testing.assert_array_equal(result1.intercept, result2.intercept)
 
     def test_different_seeds_produce_different_params(
-        self, baseline_config: GenerationConfig, theta: np.ndarray
+        self, baseline_config: GenerationConfig, theta: npt.NDArray[np.float64]
     ) -> None:
         sampler = JointParameterSampler(baseline_config)
         n_questions = 50

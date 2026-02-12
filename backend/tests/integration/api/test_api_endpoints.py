@@ -116,7 +116,7 @@ class TestThresholdPipelineE2E:
 
             result = await _poll_until_done(client, job_id)
             assert result["status"] == "completed"
-            assert result["result"] is not None
+            assert isinstance(result["result"], dict)
             assert result["result"]["pipeline_type"] == "threshold"
             assert isinstance(result["result"]["suspects"], list)
 
@@ -138,7 +138,7 @@ class TestAutomaticPipelineE2E:
 
             result = await _poll_until_done(client, job_id)
             assert result["status"] == "completed"
-            assert result["result"] is not None
+            assert isinstance(result["result"], dict)
             assert result["result"]["pipeline_type"] == "automatic"
 
 

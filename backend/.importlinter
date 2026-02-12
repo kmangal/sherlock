@@ -6,13 +6,7 @@ name = Early stages cannot import from later stages
 type = layers
 layers =
     analysis_service.api
+    analysis_service.evaluation
     analysis_service.detection
     analysis_service.irt
     analysis_service.core
-
-[importlinter:contract:synthetic-data-protected]
-name = Synthetic data module cannot be imported
-type = protected
-protected_modules =
-    analysis_service.synthetic_data
-allowed_importers =

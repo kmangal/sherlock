@@ -1,4 +1,5 @@
 import numpy as np
+import numpy.typing as npt
 import pytest
 
 from analysis_service.core.utils import get_rng
@@ -13,7 +14,7 @@ def baseline_config() -> GenerationConfig:
 
 
 @pytest.fixture
-def abilities(baseline_config: GenerationConfig) -> np.ndarray:
+def abilities(baseline_config: GenerationConfig) -> npt.NDArray[np.float64]:
     """Sample abilities for testing."""
     rng = get_rng(123)
     return rng.standard_normal(baseline_config.n_candidates)
@@ -21,7 +22,9 @@ def abilities(baseline_config: GenerationConfig) -> np.ndarray:
 
 class TestSampleParams:
     def test_returns_correct_count(
-        self, baseline_config: GenerationConfig, abilities: np.ndarray
+        self,
+        baseline_config: GenerationConfig,
+        abilities: npt.NDArray[np.float64],
     ) -> None:
         params = sample_item_parameters(
             baseline_config, abilities, rng=get_rng(42)
@@ -30,7 +33,9 @@ class TestSampleParams:
         assert len(params) == baseline_config.n_questions
 
     def test_creates_valid_params(
-        self, baseline_config: GenerationConfig, abilities: np.ndarray
+        self,
+        baseline_config: GenerationConfig,
+        abilities: npt.NDArray[np.float64],
     ) -> None:
         params = sample_item_parameters(
             baseline_config, abilities, rng=get_rng(42)
@@ -43,7 +48,9 @@ class TestSampleParams:
             assert 0 <= p.correct_answer < n_response_categories
 
     def test_item_ids_are_sequential(
-        self, baseline_config: GenerationConfig, abilities: np.ndarray
+        self,
+        baseline_config: GenerationConfig,
+        abilities: npt.NDArray[np.float64],
     ) -> None:
         params = sample_item_parameters(
             baseline_config, abilities, rng=get_rng(42)
@@ -53,7 +60,9 @@ class TestSampleParams:
             assert p.item_id == i
 
     def test_reproducible_with_same_seed(
-        self, baseline_config: GenerationConfig, abilities: np.ndarray
+        self,
+        baseline_config: GenerationConfig,
+        abilities: npt.NDArray[np.float64],
     ) -> None:
         p1 = sample_item_parameters(
             baseline_config, abilities, rng=get_rng(42)
@@ -69,7 +78,9 @@ class TestSampleParams:
             assert p1[i].correct_answer == p2[i].correct_answer
 
     def test_different_seeds_produce_different_params(
-        self, baseline_config: GenerationConfig, abilities: np.ndarray
+        self,
+        baseline_config: GenerationConfig,
+        abilities: npt.NDArray[np.float64],
     ) -> None:
         p1 = sample_item_parameters(
             baseline_config, abilities, rng=get_rng(42)

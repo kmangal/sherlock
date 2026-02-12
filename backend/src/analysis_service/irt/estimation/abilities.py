@@ -15,7 +15,7 @@ from analysis_service.core.utils import get_rng
 from analysis_service.irt.estimation.config import (
     EstimationConfig,
 )
-from analysis_service.irt.estimation.estimator import IRTEstimationResult
+from analysis_service.irt.estimation.data_models import IRTEstimationResult
 from analysis_service.irt.estimation.parameters import NRMItemParameters
 from analysis_service.irt.estimation.quadrature import (
     GaussHermiteQuadrature,

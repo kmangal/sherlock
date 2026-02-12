@@ -63,3 +63,24 @@ def responses_to_string(responses: NDArray[np.int8]) -> str:
         else:
             chars.append(index_to_letter(int(r)))
     return "".join(chars)
+
+
+def string_to_responses(answer_string: str) -> NDArray[np.int8]:
+    """
+    Convert an answer string to an array of response indices.
+
+    Inverse of responses_to_string.
+
+    Args:
+        answer_string: Answer string (e.g., "ABCD*A")
+
+    Returns:
+        1D array of response indices (0-based), with MISSING_VALUE for '*'
+    """
+    responses = []
+    for char in answer_string:
+        if char == MISSING_CHAR:
+            responses.append(MISSING_VALUE)
+        else:
+            responses.append(letter_to_index(char))
+    return np.array(responses, dtype=np.int8)

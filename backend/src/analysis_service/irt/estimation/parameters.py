@@ -16,13 +16,14 @@ from typing import Self
 
 import numpy as np
 from numpy.typing import NDArray
+from pydantic import BaseModel, model_validator
 
 # Exponent clipping bounds to prevent overflow
 EXPONENT_CLIP_MIN = -30.0
 EXPONENT_CLIP_MAX = 30.0
 
 
-class NRMItemParameters:
+class NRMItemParameters(BaseModel):
     """
     Parameters for one item under the Nominal Response Model.
 
@@ -43,34 +44,32 @@ class NRMItemParameters:
             When known, a soft penalty encourages a_correct > a_distractor.
     """
 
-    def __init__(
-        self,
-        item_id: int,
-        discriminations: tuple[float, ...],
-        intercepts: tuple[float, ...],
-        correct_answer: int | None = None,
-    ) -> None:
-        self.item_id = item_id
+    item_id: int
+    discriminations: tuple[float, ...]
+    intercepts: tuple[float, ...]
+    correct_answer: int | None = None
 
-        self.discriminations = discriminations
-        self.intercepts = intercepts
-        self.correct_answer = correct_answer
-
-        self._validate_parameters()
-
-    def _validate_parameters(self) -> None:
-        """Validate parameters."""
+    @model_validator(mode="after")
+    def _validate_parameters_have_same_length(self) -> "NRMItemParameters":
         if len(self.discriminations) != len(self.intercepts):
             raise ValueError(
                 f"discriminations and intercepts must have same length, "
                 f"got {len(self.discriminations)} and {len(self.intercepts)}"
             )
+        return self
+
+    @model_validator(mode="after")
+    def _validate_num_response_categories(self) -> "NRMItemParameters":
         # Need at least 2 response categories + 1 missing = 3 total
         if len(self.discriminations) < 3:
             raise ValueError(
                 f"Must have at least 3 total categories (2 responses + missing), "
                 f"got {len(self.discriminations)}"
             )
+        return self
+
+    @model_validator(mode="after")
+    def _validate_correct_answer(self) -> "NRMItemParameters":
         # correct_answer must be in [0, K-1] where K = n_response_categories
         # i.e., it cannot be the missing category
         if self.correct_answer is not None:
@@ -79,6 +78,7 @@ class NRMItemParameters:
                     f"correct_answer must be in [0, {self.n_response_categories}), "
                     f"got {self.correct_answer}"
                 )
+        return self
 
     @property
     def has_correct_answer(self) -> bool:

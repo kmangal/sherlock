@@ -132,9 +132,9 @@ class TestAnalysisRequest:
             }
         }
         with pytest.raises(ValidationError):
-            AnalysisRequest(**{**base, "significance_level": 0.0})
+            AnalysisRequest.model_validate({**base, "significance_level": 0.0})
         with pytest.raises(ValidationError):
-            AnalysisRequest(**{**base, "significance_level": 1.0})
+            AnalysisRequest.model_validate({**base, "significance_level": 1.0})
 
     def test_num_monte_carlo_positive(self) -> None:
         with pytest.raises(ValidationError):
@@ -167,7 +167,7 @@ class TestAnalysisRequest:
 
 class TestJobStatus:
     def test_values(self) -> None:
-        assert JobStatus.PENDING == "pending"
-        assert JobStatus.RUNNING == "running"
-        assert JobStatus.COMPLETED == "completed"
-        assert JobStatus.FAILED == "failed"
+        assert JobStatus.PENDING.value == "pending"
+        assert JobStatus.RUNNING.value == "running"
+        assert JobStatus.COMPLETED.value == "completed"
+        assert JobStatus.FAILED.value == "failed"

@@ -28,12 +28,14 @@ from statsmodels.nonparametric.smoothers_lowess import (  # type: ignore[import-
 from analysis_service.core.constants import MISSING_CHAR, MISSING_VALUE
 from analysis_service.core.data_models import ResponseMatrix
 from analysis_service.core.utils import get_rng
-from analysis_service.irt.estimation.abilities import (
-    estimate_abilities_eap,
+from analysis_service.irt.diagnostics import (
+    ResponseProbComparison,
+    compute_response_prob_comparison,
 )
-from analysis_service.irt.estimation.estimator import (
+from analysis_service.irt.estimation import (
     IRTEstimationResult,
     NRMEstimator,
+    estimate_abilities_eap,
 )
 from analysis_service.irt.estimation.parameters import NRMItemParameters
 from analysis_service.synthetic_data.config import GenerationConfig
@@ -46,7 +48,7 @@ from analysis_service.synthetic_data.presets import (
 from analysis_service.synthetic_data.sampling import draw_sample
 from analysis_service.synthetic_data.utils import (
     index_to_letter,
-    letter_to_index,
+    string_to_responses,
 )
 
 # Suppress verbose logging from matplotlib and PIL
@@ -67,17 +69,6 @@ app = typer.Typer()
 
 
 @dataclass
-class ResponseProbComparison:
-    """Comparison of empirical vs model response probabilities."""
-
-    item_id: NDArray[np.int64]
-    category: list[str]  # Response letters (A, B, C, ...) or MISSING_CHAR
-    empirical_prob: NDArray[np.float64]
-    model_prob: NDArray[np.float64]
-    difference: NDArray[np.float64]
-
-
-@dataclass
 class ParameterRecovery:
     """Comparison of true vs fitted item parameters."""
 
@@ -93,20 +84,9 @@ class ParameterRecovery:
 # =============================================================================
 
 
-def parse_answer_string(answer_string: str) -> NDArray[np.int8]:
-    """Parse an answer string into response indices."""
-    responses = []
-    for char in answer_string:
-        if char == "*":
-            responses.append(MISSING_VALUE)
-        else:
-            responses.append(letter_to_index(char))
-    return np.array(responses, dtype=np.int8)
-
-
 def generated_data_to_response_matrix(data: GeneratedData) -> ResponseMatrix:
     """Convert GeneratedData to ResponseMatrix."""
-    response_arrays = [parse_answer_string(s) for s in data.answer_strings]
+    response_arrays = [string_to_responses(s) for s in data.answer_strings]
     responses = np.stack(response_arrays)
     n_categories = data.config.n_response_categories
     return ResponseMatrix(responses=responses, n_categories=n_categories)
@@ -211,67 +191,6 @@ def compute_mean_intercept(item_params: NRMItemParameters) -> float:
     n_response_categories = item_params.n_response_categories
     intercepts = item_params.intercepts[:n_response_categories]
     return float(np.mean(intercepts))
-
-
-def compute_response_prob_comparison(
-    data: ResponseMatrix,
-    model: IRTEstimationResult,
-    abilities: NDArray[np.float64],
-) -> ResponseProbComparison:
-    """Compare empirical vs model response probabilities.
-
-    Includes all response categories (A, B, C, ...) plus missing (*).
-    Categories are represented as letters for readability.
-    """
-    n_categories = data.n_categories
-    n_candidates = data.n_candidates
-
-    item_ids: list[int] = []
-    categories: list[str] = []
-    empirical_probs: list[float] = []
-    model_probs: list[float] = []
-
-    for item_idx, item_params in enumerate(model.item_parameters):
-        item_responses = data.responses[:, item_idx]
-
-        # Count each response category (0 to n_categories-1) -> letters A, B, C, ...
-        for cat in range(n_categories):
-            cat_letter = index_to_letter(cat)
-            empirical_count = (item_responses == cat).sum()
-            empirical_prob = empirical_count / n_candidates
-
-            # Model: average P(cat|theta) across all candidates
-            probs = item_params.compute_probabilities(abilities)
-            model_prob = float(np.mean(probs[:, cat]))
-
-            item_ids.append(item_idx)
-            categories.append(cat_letter)
-            empirical_probs.append(empirical_prob)
-            model_probs.append(model_prob)
-
-        # Missing category (index n_categories in model, represented as MISSING_CHAR)
-        missing_count = (item_responses == MISSING_VALUE).sum()
-        empirical_prob_missing = missing_count / n_candidates
-
-        # Model probability for missing (last category in NRM)
-        probs = item_params.compute_probabilities(abilities)
-        model_prob_missing = float(np.mean(probs[:, n_categories]))
-
-        item_ids.append(item_idx)
-        categories.append(MISSING_CHAR)
-        empirical_probs.append(empirical_prob_missing)
-        model_probs.append(model_prob_missing)
-
-    empirical_arr = np.array(empirical_probs, dtype=np.float64)
-    model_arr = np.array(model_probs, dtype=np.float64)
-
-    return ResponseProbComparison(
-        item_id=np.array(item_ids, dtype=np.int64),
-        category=categories,
-        empirical_prob=empirical_arr,
-        model_prob=model_arr,
-        difference=empirical_arr - model_arr,
-    )
 
 
 def compute_parameter_recovery(
@@ -438,15 +357,27 @@ def plot_param_recovery_scatter(
 # =============================================================================
 
 
+def category_int_to_letter(cat: int, n_categories: int) -> str:
+    """Convert category index to letter (or MISSING_CHAR for missing)."""
+    if cat == n_categories:
+        return MISSING_CHAR
+    return index_to_letter(cat)
+
+
 def save_response_prob_csv(
     comparison: ResponseProbComparison,
+    n_categories: int,
     path: Path,
 ) -> None:
     """Save response probability comparison to CSV."""
+    category_letters = [
+        category_int_to_letter(int(cat), n_categories)
+        for cat in comparison.category
+    ]
     df = pd.DataFrame(
         {
             "item_id": comparison.item_id,
-            "category": comparison.category,
+            "category": category_letters,
             "empirical_prob": comparison.empirical_prob,
             "model_prob": comparison.model_prob,
             "difference": comparison.difference,
@@ -670,7 +601,9 @@ def main(
 
     # -- Response probability comparison CSV --
     save_response_prob_csv(
-        prob_comparison, report_dir / "response_prob_comparison.csv"
+        prob_comparison,
+        data.n_categories,
+        report_dir / "response_prob_comparison.csv",
     )
 
     # -- Response probability histogram --

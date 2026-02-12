@@ -6,8 +6,13 @@ This module provides:
 - Sampling functions for generating responses
 - Estimation infrastructure for fitting IRT models to data
 - Ability estimation
+- Diagnostic utilities for model validation
 """
 
+from analysis_service.irt.diagnostics import (
+    ResponseProbComparison,
+    compute_response_prob_comparison,
+)
 from analysis_service.irt.estimation.estimator import NRMEstimator
 from analysis_service.irt.estimation.parameters import (
     NRMItemParameters,
@@ -20,6 +25,8 @@ from analysis_service.irt.sampling import (
 __all__ = [
     "NRMEstimator",
     "NRMItemParameters",
+    "ResponseProbComparison",
+    "compute_response_prob_comparison",
     "sample_response",
     "sample_responses_batch",
 ]

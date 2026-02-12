@@ -17,14 +17,12 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
-import pandas as pd
 import typer
 from memory_profiler import memory_usage  # type: ignore[import-untyped]
-from numpy.typing import NDArray
 
-from analysis_service.core.constants import MISSING_VALUE
+from analysis_service.core.data import load_csv_to_response_matrix
 from analysis_service.core.data_models import ResponseMatrix
-from analysis_service.irt.estimation.estimator import (
+from analysis_service.irt.estimation import (
     IRTEstimationResult,
     NRMEstimator,
 )
@@ -33,7 +31,7 @@ from analysis_service.synthetic_data.presets import (
     get_available_presets,
     get_preset,
 )
-from analysis_service.synthetic_data.utils import letter_to_index
+from analysis_service.synthetic_data.utils import string_to_responses
 
 BACKEND_DIR = Path(__file__).parent.parent.absolute()
 SYNTHETIC_DATA_DIR = BACKEND_DIR / "data" / "synthetic"
@@ -96,49 +94,6 @@ class ProfilingResult:
     log_likelihood: float
 
 
-def parse_answer_string(answer_string: str) -> NDArray[np.int8]:
-    """
-    Parse an answer string into response indices.
-
-    A-Z maps to 0-25, * maps to MISSING_VALUE (-1).
-    """
-    responses = []
-    for char in answer_string:
-        if char == "*":
-            responses.append(MISSING_VALUE)
-        else:
-            responses.append(letter_to_index(char))
-    return np.array(responses, dtype=np.int8)
-
-
-def load_from_csv(path: Path) -> ResponseMatrix:
-    """
-    Load response data from a CSV file.
-
-    CSV must have 'answer_string' column with A-Z or * characters.
-    """
-    df = pd.read_csv(path)
-    if "answer_string" not in df.columns:
-        raise ValueError(f"CSV must have 'answer_string' column: {path}")
-
-    answer_strings = df["answer_string"].tolist()
-    if not answer_strings:
-        raise ValueError(f"CSV has no data rows: {path}")
-
-    # Parse all answer strings
-    response_arrays = [parse_answer_string(s) for s in answer_strings]
-    responses = np.stack(response_arrays)
-
-    # Determine n_categories from max valid response value
-    valid_mask = responses != MISSING_VALUE
-    if not valid_mask.any():
-        raise ValueError("No valid responses found in data")
-    max_response = responses[valid_mask].max()
-    n_categories = int(max_response) + 1
-
-    return ResponseMatrix(responses=responses, n_categories=n_categories)
-
-
 def load_dataset(dataset: str) -> tuple[ResponseMatrix, str]:
     """
     Load dataset from various sources.
@@ -157,13 +112,15 @@ def load_dataset(dataset: str) -> tuple[ResponseMatrix, str]:
     # Check if it's a direct CSV path
     if dataset_path.suffix == ".csv" and dataset_path.exists():
         logger.info("Loading from CSV file: %s", dataset_path)
-        return load_from_csv(dataset_path), dataset_path.stem
+        _, rm = load_csv_to_response_matrix(dataset_path)
+        return rm, dataset_path.stem
 
     # Check synthetic data directory
     synthetic_path = SYNTHETIC_DATA_DIR / f"{dataset}.csv"
     if synthetic_path.exists():
         logger.info("Loading from synthetic data: %s", synthetic_path)
-        return load_from_csv(synthetic_path), dataset
+        _, rm = load_csv_to_response_matrix(synthetic_path)
+        return rm, dataset
 
     # Check presets
     available_presets = get_available_presets()
@@ -173,7 +130,7 @@ def load_dataset(dataset: str) -> tuple[ResponseMatrix, str]:
         data = generate_exam_responses(config)
 
         # Convert to ResponseMatrix
-        response_arrays = [parse_answer_string(s) for s in data.answer_strings]
+        response_arrays = [string_to_responses(s) for s in data.answer_strings]
         responses = np.stack(response_arrays)
         n_categories = config.n_response_categories
 

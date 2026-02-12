@@ -5,6 +5,7 @@ These tests run the full pipeline including IRT estimation.
 """
 
 import numpy as np
+import numpy.typing as npt
 
 from analysis_service.core.data_models import ExamDataset, ResponseMatrix
 from analysis_service.detection.pipeline import AutomaticDetectionPipeline
@@ -15,7 +16,7 @@ def create_synthetic_exam_data(
     n_items: int,
     n_categories: int,
     rng: np.random.Generator,
-) -> tuple[np.ndarray, np.ndarray]:
+) -> tuple[npt.NDArray[np.int8], npt.NDArray[np.str_]]:
     """Create synthetic exam data with realistic response patterns."""
     # Simple ability-based response generation
     abilities = rng.standard_normal(n_candidates)
@@ -36,7 +37,7 @@ def create_synthetic_exam_data(
 
 
 def inject_cheaters(
-    responses: np.ndarray,
+    responses: npt.NDArray[np.int8],
     cheater_indices: list[tuple[int, int]],
     copy_fraction: float,
     rng: np.random.Generator,

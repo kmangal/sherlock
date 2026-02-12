@@ -1,6 +1,7 @@
 """Tests for missingness models."""
 
 import numpy as np
+import numpy.typing as npt
 import pytest
 
 from analysis_service.core.utils import get_rng
@@ -30,10 +31,10 @@ def _create_test_params(
 
 
 def _compute_missing_probability(
-    discrimination: np.ndarray,
-    intercept: np.ndarray,
-    theta: float | np.ndarray,
-) -> np.ndarray:
+    discrimination: npt.NDArray[np.float64],
+    intercept: npt.NDArray[np.float64],
+    theta: float | npt.NDArray[np.float64],
+) -> npt.NDArray[np.float64]:
     """Compute probability of missing category at given theta(s).
 
     Args:
@@ -156,7 +157,7 @@ class TestMCARMissingness:
         n_questions = 20
         params = _create_test_params(n_questions=n_questions, n_categories=4)
         rng = get_rng(42)
-        theta = np.linspace(-2, 2, 100)
+        theta = np.linspace(-2, 2, 100).astype(np.float64)
 
         rate = 0.15
         model = MCARMissingness(rate=rate)
@@ -207,7 +208,7 @@ class TestAbilityDependentMissingness:
         """Lower ability should have higher missing probability."""
         params = _create_test_params(n_questions=10, n_categories=4)
         rng = get_rng(42)
-        theta = np.linspace(-2, 2, 100)
+        theta = np.linspace(-2, 2, 100).astype(np.float64)
 
         model = AbilityDependentMissingness(ability_effect=0.1)
         result = model.generate_missing_params(params, theta, rng)
